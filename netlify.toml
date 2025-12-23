@@ -1,0 +1,35 @@
+[build]
+  # Build command for Flutter web
+  command = "flutter build web --release"
+  
+  # Directory to publish (Flutter web output)
+  publish = "build/web"
+  
+  # Base directory (root of the project)
+  base = ""
+
+# Flutter requires specific environment
+[build.environment]
+  # Use Ubuntu focal for better compatibility
+  NETLIFY_BUILD_IMAGE = "focal"
+
+# SPA redirect rule for Flutter Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers for Flutter web app
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
