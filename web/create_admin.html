@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Strame Admin</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0F0F17 0%, #0A0E27 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: rgba(26, 26, 36, 0.8);
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: #6A4CFF;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #B0B0B0;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            background: #1A1A24;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #6A4CFF;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #6A4CFF 0%, #00D4FF 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(106, 76, 255, 0.3);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .success {
+            background: rgba(0, 255, 135, 0.1);
+            border: 1px solid rgba(0, 255, 135, 0.3);
+            color: #00FF87;
+        }
+        .error {
+            background: rgba(255, 59, 48, 0.1);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            color: #FF3B30;
+        }
+        .loading {
+            background: rgba(106, 76, 255, 0.1);
+            border: 1px solid rgba(106, 76, 255, 0.3);
+            color: #6A4CFF;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Create Strame Admin</h1>
+        
+        <div class="form-group">
+            <label>Admin Email:</label>
+            <input type="email" id="email" value="admin@strame.com" required>
+        </div>
+        
+        <div class="form-group">
+            <label>Admin Password:</label>
+            <input type="password" id="password" value="Admin@123456" required>
+        </div>
+        
+        <div class="form-group">
+            <label>Admin Name:</label>
+            <input type="text" id="name" value="Strame Admin" required>
+        </div>
+        
+        <button onclick="createAdmin()" id="createBtn">Create Admin User</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBZ_TgdFflgCB3RX3-TQ60mUujYGyjSk5U",
+            authDomain: "vishal-49ba6.firebaseapp.com",
+            databaseURL: "https://vishal-49ba6-default-rtdb.firebaseio.com",
+            projectId: "vishal-49ba6",
+            storageBucket: "vishal-49ba6.firebasestorage.app",
+            messagingSenderId: "62157388112",
+            appId: "1:62157388112:web:40046920635063667d5455"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Make functions global
+        window.createAdmin = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const name = document.getElementById('name').value;
+            const resultDiv = document.getElementById('result');
+            const createBtn = document.getElementById('createBtn');
+
+            if (!email || !password || !name) {
+                showResult('Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                createBtn.disabled = true;
+                showResult('Creating admin user...', 'loading');
+
+                let userCredential;
+                try {
+                    // Try to create new user
+                    userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    console.log('✅ New admin user created in Auth');
+                } catch (error) {
+                    if (error.code === 'auth/email-already-in-use') {
+                        // User exists, sign in instead
+                        userCredential = await signInWithEmailAndPassword(auth, email, password);
+                        console.log('✅ Existing admin user signed in');
+                    } else {
+                        throw error;
+                    }
+                }
+
+                const user = userCredential.user;
+                
+                // Create admin profile in Firestore
+                const adminData = {
+                    uid: user.uid,
+                    email: email,
+                    name: name,
+                    role: 'admin',
+                    isActive: true,
+                    createdAt: serverTimestamp()
+                };
+
+                await setDoc(doc(db, 'admins', user.uid), adminData);
+                console.log('✅ Admin profile created in Firestore');
+
+                // Sign out
+                await signOut(auth);
+
+                showResult(`
+                    🎉 Admin user created successfully!<br><br>
+                    📧 Email: ${email}<br>
+                    🔑 Password: ${password}<br>
+                    🌐 Login at: <a href="http://localhost:8080" target="_blank" style="color: #00D4FF;">http://localhost:8080</a>
+                `, 'success');
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                showResult(`Error: ${error.message}`, 'error');
+            } finally {
+                createBtn.disabled = false;
+            }
+        };
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = `result ${type}`;
+        }
+
+        console.log('🔥 Firebase initialized successfully');
+        console.log('📧 Default admin email: admin@strame.com');
+        console.log('🔑 Default admin password: Admin@123456');
+    </script>
+</body>
+</html>
+
+
