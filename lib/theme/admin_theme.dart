@@ -7,65 +7,62 @@ class AdminTheme {
   static const Color darkCharcoal = Color(0xFF0F0F17);
   static const Color electricBlue = Color(0xFF00D4FF);
   static const Color neonMagenta = Color(0xFFFF00E5);
-  
+
   // Admin-specific colors
   static const Color sidebarDark = Color(0xFF0A0E27);
   static const Color cardDark = Color(0xFF1A1A24);
   static const Color cardDarker = Color(0xFF15151E);
   static const Color borderColor = Color(0xFF2A2A35);
   static const Color glassStroke = Color(0x33FFFFFF);
-  
+
   // Status colors
   static const Color successGreen = Color(0xFF00FF87);
   static const Color warningOrange = Color(0xFFFF9500);
   static const Color errorRed = Color(0xFFFF3B30);
   static const Color infoBlue = Color(0xFF5A9CFF);
-  
+
   // Text colors
   static const Color textPrimary = Colors.white;
   static const Color textSecondary = Color(0xFFB0B0B0);
   static const Color textTertiary = Color(0xFF6B7280);
-  
+
   // Background colors
   static const Color backgroundPrimary = Color(0xFF05050A);
   static const Color backgroundSecondary = Color(0xFF0F0F17);
   static const Color backgroundTertiary = Color(0xFF1A1A24);
-  
+
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primaryPurple, electricBlue],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
+
   static const LinearGradient backgroundGradient = LinearGradient(
     colors: [backgroundPrimary, backgroundSecondary],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
-  
+
   static const LinearGradient cardGradient = LinearGradient(
     colors: [cardDark, cardDarker],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
+
   static const LinearGradient glassGradient = LinearGradient(
-    colors: [
-      Color(0x1AFFFFFF),
-      Color(0x0DFFFFFF),
-    ],
+    colors: [Color(0x1AFFFFFF), Color(0x0DFFFFFF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
+
   // Dimensions
   static const double radiusXs = 8;
   static const double radiusSm = 12;
   static const double radiusMd = 16;
   static const double radiusLg = 24;
   static const double radiusXl = 32;
-  
+
   static const double spacingXs = 4;
   static const double spacingSm = 8;
   static const double spacingMd = 16;
@@ -73,14 +70,14 @@ class AdminTheme {
   static const double spacingXl = 32;
   static const double spacing2Xl = 48;
   static const double spacing3Xl = 64;
-  
+
   // Sidebar
   static const double sidebarWidth = 280;
   static const double sidebarCollapsedWidth = 80;
-  
+
   // Header
   static const double headerHeight = 80;
-  
+
   // Card shadows
   static List<BoxShadow> cardShadow = [
     BoxShadow(
@@ -89,7 +86,7 @@ class AdminTheme {
       offset: const Offset(0, 10),
     ),
   ];
-  
+
   static List<BoxShadow> glassShadow = [
     BoxShadow(
       color: Colors.black.withOpacity(0.1),
@@ -97,7 +94,7 @@ class AdminTheme {
       offset: const Offset(0, 4),
     ),
   ];
-  
+
   // Text Styles
   static TextStyle get displayLarge => GoogleFonts.inter(
     fontSize: 48,
@@ -105,81 +102,81 @@ class AdminTheme {
     color: textPrimary,
     letterSpacing: -0.5,
   );
-  
+
   static TextStyle get displayMedium => GoogleFonts.inter(
     fontSize: 36,
     fontWeight: FontWeight.bold,
     color: textPrimary,
     letterSpacing: -0.3,
   );
-  
+
   static TextStyle get displaySmall => GoogleFonts.inter(
     fontSize: 28,
     fontWeight: FontWeight.w600,
     color: textPrimary,
   );
-  
+
   static TextStyle get headlineLarge => GoogleFonts.inter(
     fontSize: 24,
     fontWeight: FontWeight.bold,
     color: textPrimary,
   );
-  
+
   static TextStyle get headlineMedium => GoogleFonts.inter(
     fontSize: 20,
     fontWeight: FontWeight.w600,
     color: textPrimary,
   );
-  
+
   static TextStyle get headlineSmall => GoogleFonts.inter(
     fontSize: 18,
     fontWeight: FontWeight.w600,
     color: textPrimary,
   );
-  
+
   static TextStyle get bodyLarge => GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.normal,
     color: textPrimary,
   );
-  
+
   static TextStyle get bodyMedium => GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.normal,
     color: textPrimary,
   );
-  
+
   static TextStyle get bodySmall => GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.normal,
     color: textSecondary,
   );
-  
+
   static TextStyle get labelLarge => GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: textPrimary,
   );
-  
+
   static TextStyle get labelMedium => GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w500,
     color: textSecondary,
   );
-  
+
   static TextStyle get labelSmall => GoogleFonts.inter(
     fontSize: 10,
     fontWeight: FontWeight.w500,
     color: textTertiary,
   );
-  
+
   // Theme Data
   static ThemeData get darkTheme => ThemeData(
     brightness: Brightness.dark,
     primaryColor: primaryPurple,
     scaffoldBackgroundColor: backgroundPrimary,
     fontFamily: GoogleFonts.inter().fontFamily,
-    
+
     colorScheme: const ColorScheme.dark(
       primary: primaryPurple,
       secondary: electricBlue,
@@ -190,7 +187,7 @@ class AdminTheme {
       onSurface: textPrimary,
       onError: textPrimary,
     ),
-    
+
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -198,8 +195,8 @@ class AdminTheme {
       titleTextStyle: headlineMedium,
       iconTheme: const IconThemeData(color: textPrimary),
     ),
-    
-    cardTheme: CardTheme(
+
+    cardTheme: CardThemeData(
       color: cardDark,
       elevation: 0,
       shadowColor: Colors.black.withOpacity(0.3),
@@ -208,7 +205,7 @@ class AdminTheme {
         side: BorderSide(color: borderColor.withOpacity(0.3)),
       ),
     ),
-    
+
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryPurple,
@@ -219,13 +216,10 @@ class AdminTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSm),
         ),
-        textStyle: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     ),
-    
+
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: textPrimary,
@@ -234,13 +228,10 @@ class AdminTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSm),
         ),
-        textStyle: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     ),
-    
+
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primaryPurple,
@@ -248,13 +239,10 @@ class AdminTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSm),
         ),
-        textStyle: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     ),
-    
+
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: cardDark,
@@ -278,7 +266,7 @@ class AdminTheme {
       labelStyle: GoogleFonts.inter(color: textSecondary),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
-    
+
     dataTableTheme: DataTableThemeData(
       decoration: BoxDecoration(
         color: cardDark,
@@ -297,22 +285,16 @@ class AdminTheme {
         fontWeight: FontWeight.w600,
         fontSize: 14,
       ),
-      dataTextStyle: GoogleFonts.inter(
-        color: textPrimary,
-        fontSize: 14,
-      ),
+      dataTextStyle: GoogleFonts.inter(color: textPrimary, fontSize: 14),
     ),
-    
+
     dividerTheme: DividerThemeData(
       color: borderColor.withOpacity(0.3),
       thickness: 1,
     ),
-    
-    iconTheme: const IconThemeData(
-      color: textSecondary,
-      size: 24,
-    ),
-    
+
+    iconTheme: const IconThemeData(color: textSecondary, size: 24),
+
     textTheme: TextTheme(
       displayLarge: displayLarge,
       displayMedium: displayMedium,
@@ -328,12 +310,12 @@ class AdminTheme {
       labelSmall: labelSmall,
     ),
   );
-  
+
   // Helper methods
   static Color withOpacity(Color color, double opacity) {
     return color.withOpacity(opacity);
   }
-  
+
   static BoxDecoration glassCard({
     double borderRadius = radiusMd,
     Color? borderColor,
@@ -341,17 +323,12 @@ class AdminTheme {
     return BoxDecoration(
       gradient: glassGradient,
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(
-        color: borderColor ?? glassStroke,
-        width: 1,
-      ),
+      border: Border.all(color: borderColor ?? glassStroke, width: 1),
       boxShadow: glassShadow,
     );
   }
-  
-  static BoxDecoration primaryCard({
-    double borderRadius = radiusMd,
-  }) {
+
+  static BoxDecoration primaryCard({double borderRadius = radiusMd}) {
     return BoxDecoration(
       gradient: cardGradient,
       borderRadius: BorderRadius.circular(borderRadius),
@@ -363,6 +340,3 @@ class AdminTheme {
     );
   }
 }
-
-
-
