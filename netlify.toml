@@ -1,6 +1,6 @@
 [build]
-  # Build command for Flutter web
-  command = "flutter build web --release"
+  # Install Flutter first, then build
+  command = "bash install_flutter.sh && export PATH=\"$PATH:/opt/buildhome/flutter/bin\" && flutter build web --release"
   
   # Directory to publish (Flutter web output)
   publish = "build/web"
