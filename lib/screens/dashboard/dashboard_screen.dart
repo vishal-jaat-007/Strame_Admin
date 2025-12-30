@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:responsive_framework/responsive_framework.dart';
+import '../../utils/responsive_utils.dart' as app_utils;
 import '../../theme/admin_theme.dart';
 import '../../providers/admin_auth_provider.dart';
 import '../../widgets/layout/admin_sidebar.dart';
@@ -50,7 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _toggleSidebar() {
-    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
+    final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     setState(() {
       if (isMobile) {
@@ -74,7 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
+    final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     return Consumer<AdminAuthProvider>(
       builder: (context, authProvider, child) {
