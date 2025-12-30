@@ -51,28 +51,27 @@ class StrameAdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: adminAuthProvider),
-      ],
+      providers: [ChangeNotifierProvider.value(value: adminAuthProvider)],
       child: MaterialApp(
         title: 'Strame Admin Panel',
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
         theme: AdminTheme.darkTheme,
-        
+
         // Responsive framework
-        builder: (context, child) => ResponsiveBreakpoints.builder(
-          child: child!,
-          breakpoints: [
-            const Breakpoint(start: 0, end: 450, name: MOBILE),
-            const Breakpoint(start: 451, end: 800, name: TABLET),
-            const Breakpoint(start: 801, end: 1920, name: DESKTOP),
-            const Breakpoint(start: 1921, end: double.infinity, name: '4K'),
-          ],
-        ),
-        
+        builder:
+            (context, child) => ResponsiveBreakpoints.builder(
+              child: child!,
+              breakpoints: [
+                const Breakpoint(start: 0, end: 450, name: MOBILE),
+                const Breakpoint(start: 451, end: 800, name: TABLET),
+                const Breakpoint(start: 801, end: 1920, name: DESKTOP),
+                const Breakpoint(start: 1921, end: double.infinity, name: '4K'),
+              ],
+            ),
+
         home: const AuthWrapper(),
-        
+
         // Routes
         routes: {
           '/login': (context) => const LoginScreen(),
@@ -90,17 +89,32 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AdminAuthProvider>(
       builder: (context, authProvider, child) {
+        print('🔄 [AuthWrapper] Building AuthWrapper...');
+        print('📊 [AuthWrapper] isLoading: ${authProvider.isLoading}');
+        print(
+          '🔐 [AuthWrapper] isAuthenticated: ${authProvider.isAuthenticated}',
+        );
+        print(
+          '👤 [AuthWrapper] currentAdmin: ${authProvider.currentAdmin?.email ?? "null"}',
+        );
+        print(
+          '❌ [AuthWrapper] errorMessage: ${authProvider.errorMessage ?? "none"}',
+        );
+
         // Show loading screen while initializing
         if (authProvider.isLoading) {
+          print('⏳ [AuthWrapper] Showing LoadingScreen');
           return const LoadingScreen();
         }
 
         // Show dashboard if authenticated
         if (authProvider.isAuthenticated) {
+          print('✅ [AuthWrapper] Showing DashboardScreen');
           return const DashboardScreen();
         }
 
         // Show login screen if not authenticated
+        print('🔐 [AuthWrapper] Showing LoginScreen');
         return const LoginScreen();
       },
     );
@@ -136,9 +150,9 @@ class LoadingScreen extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              
+
               const SizedBox(height: AdminTheme.spacingXl),
-              
+
               // App title
               Text(
                 'Strame Admin Panel',
@@ -146,18 +160,18 @@ class LoadingScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              
+
               const SizedBox(height: AdminTheme.spacingSm),
-              
+
               Text(
                 'High-Level Dashboard',
                 style: AdminTheme.bodyLarge.copyWith(
                   color: AdminTheme.textSecondary,
                 ),
               ),
-              
+
               const SizedBox(height: AdminTheme.spacingXl),
-              
+
               // Loading indicator
               Container(
                 width: 60,
@@ -171,7 +185,9 @@ class LoadingScreen extends StatelessWidget {
                   ),
                 ),
                 child: const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AdminTheme.primaryPurple),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AdminTheme.primaryPurple,
+                  ),
                   strokeWidth: 3,
                 ),
               ),

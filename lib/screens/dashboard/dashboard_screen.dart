@@ -20,7 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _sidebarController;
   late Animation<double> _sidebarAnimation;
 
-  bool _isSidebarCollapsed = true; // Start collapsed on mobile
+  bool _isSidebarCollapsed = false; // Start expanded to show labels
   NavigationItem _selectedItem = NavigationItem.dashboard;
 
   @override
@@ -157,5 +157,4 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 }
-
 

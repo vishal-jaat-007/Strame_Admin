@@ -74,7 +74,8 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final timestamp = (data['createdAt'] as Timestamp).toDate();
-      final amount = (data['amount'] ?? 0).toDouble();
+      final coinsAmount = (data['amount'] ?? 0).toDouble();
+      final amount = coinsAmount * 0.2; // Convert coins to rupees
       final dayIndex = now.difference(timestamp).inDays;
 
       if (dayIndex >= 0 && dayIndex < 7) {
@@ -229,9 +230,11 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     return SizedBox(
       width: isMobile ? null : tabBarWidth,
       child: Container(
+        height: 40,
         decoration: BoxDecoration(
           color: AdminTheme.cardDarker,
           borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+          border: Border.all(color: AdminTheme.borderColor.withOpacity(0.2)),
         ),
         child: TabBar(
           controller: _tabController,
@@ -244,22 +247,25 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
             gradient: AdminTheme.primaryGradient,
             borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
           ),
+          indicatorSize: TabBarIndicatorSize.tab,
           labelColor: Colors.white,
           unselectedLabelColor: AdminTheme.textSecondary,
           labelStyle: TextStyle(
             fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
               context,
-              mobile: 12,
+              mobile: 13,
             ),
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
           ),
           unselectedLabelStyle: TextStyle(
             fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
               context,
-              mobile: 12,
+              mobile: 13,
             ),
+            fontWeight: FontWeight.w500,
           ),
           dividerColor: Colors.transparent,
+          padding: const EdgeInsets.all(4),
         ),
       ),
     );
@@ -318,10 +324,16 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
   }
 
   Widget _buildEarningsChart() {
+    final maxY =
+        earningsData.isEmpty
+            ? 100.0
+            : earningsData.map((e) => e.y).reduce((a, b) => a > b ? a : b) *
+                1.2;
+
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(),
-        titlesData: _buildTitlesData(),
+        gridData: _buildGridData(maxY),
+        titlesData: _buildTitlesData(maxY),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -367,10 +379,15 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
   }
 
   Widget _buildUsersChart() {
+    final maxY =
+        usersData.isEmpty
+            ? 100.0
+            : usersData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2;
+
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(),
-        titlesData: _buildTitlesData(),
+        gridData: _buildGridData(maxY),
+        titlesData: _buildTitlesData(maxY),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -418,10 +435,15 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
   }
 
   Widget _buildCallsChart() {
+    final maxY =
+        callsData.isEmpty
+            ? 100.0
+            : callsData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2;
+
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(),
-        titlesData: _buildTitlesData(),
+        gridData: _buildGridData(maxY),
+        titlesData: _buildTitlesData(maxY),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -468,11 +490,27 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 
-  FlGridData _buildGridData() {
+  FlGridData _buildGridData(double maxY) {
+    // Calculate interval based on max value
+    double interval = 1;
+    if (maxY > 1000) {
+      interval = 200;
+    } else if (maxY > 500) {
+      interval = 100;
+    } else if (maxY > 100) {
+      interval = 20;
+    } else if (maxY > 50) {
+      interval = 10;
+    } else if (maxY > 20) {
+      interval = 5;
+    } else if (maxY > 10) {
+      interval = 2;
+    }
+
     return FlGridData(
       show: true,
       drawVerticalLine: false,
-      horizontalInterval: 1,
+      horizontalInterval: interval,
       getDrawingHorizontalLine: (value) {
         return FlLine(
           color: AdminTheme.borderColor.withOpacity(0.2),
@@ -482,7 +520,23 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 
-  FlTitlesData _buildTitlesData() {
+  FlTitlesData _buildTitlesData(double maxY) {
+    // Calculate interval based on max value to avoid overcrowding
+    double interval = 1;
+    if (maxY > 1000) {
+      interval = 200;
+    } else if (maxY > 500) {
+      interval = 100;
+    } else if (maxY > 100) {
+      interval = 20;
+    } else if (maxY > 50) {
+      interval = 10;
+    } else if (maxY > 20) {
+      interval = 5;
+    } else if (maxY > 10) {
+      interval = 2;
+    }
+
     return FlTitlesData(
       show: true,
       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -493,13 +547,20 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
           reservedSize: 30,
           interval: 1,
           getTitlesWidget: (double value, TitleMeta meta) {
-            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            final index = value.toInt();
-            if (index >= 0 && index < days.length) {
+            final now = DateTime.now();
+            // Calculate day name based on index (0 = 6 days ago, 6 = today)
+            // The chart data is generated from index 0 to 6
+            final dayIndex = value.toInt();
+            if (dayIndex >= 0 && dayIndex < 7) {
+              // 0 is 6 days ago, 6 is today
+              final date = now.subtract(Duration(days: 6 - dayIndex));
+              final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+              final dayName = days[date.weekday - 1];
+
               return SideTitleWidget(
                 axisSide: meta.axisSide,
                 child: Text(
-                  days[index],
+                  dayName,
                   style: TextStyle(
                     fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
                       context,
@@ -517,13 +578,22 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          interval: 1,
-          reservedSize: 42,
+          interval: interval,
+          reservedSize: 40,
           getTitlesWidget: (double value, TitleMeta meta) {
+            if (value == 0) return const SizedBox.shrink();
+
+            String text;
+            if (value >= 1000) {
+              text = '${(value / 1000).toStringAsFixed(1)}k';
+            } else {
+              text = value.toInt().toString();
+            }
+
             return SideTitleWidget(
               axisSide: meta.axisSide,
               child: Text(
-                value.toInt().toString(),
+                text,
                 style: TextStyle(
                   fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
                     context,
@@ -539,5 +609,3 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 }
-
-

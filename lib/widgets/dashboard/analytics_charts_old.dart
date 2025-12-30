@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/admin_theme.dart';
-import '../../utils/responsive_utils.dart';
+import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
 
 class AnalyticsCharts extends StatefulWidget {
@@ -146,7 +146,7 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
   Widget build(BuildContext context) {
     return GlassCard(
       child: Container(
-        padding: AppResponsiveUtils.responsivePadding(context),
+        padding: app_utils.AppResponsiveUtils.responsivePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

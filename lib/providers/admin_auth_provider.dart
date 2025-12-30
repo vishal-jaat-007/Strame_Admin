@@ -17,72 +17,132 @@ class AdminAuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentAdmin != null;
-  String get adminName => _currentAdmin?.name ?? _currentAdmin?.email ?? 'Admin';
+  String get adminName =>
+      _currentAdmin?.name ?? _currentAdmin?.email ?? 'Admin';
 
   // Initialize auth state listener
   void initialize() {
-    if (_isInitialized) return;
-    
+    if (_isInitialized) {
+      print('🔄 [AdminAuthProvider] Already initialized, skipping...');
+      return;
+    }
+
+    print('🚀 [AdminAuthProvider] Initializing auth state listener...');
     _isInitialized = true;
-    
+
     _authService.authStateChanges.listen((User? user) async {
+      print(
+        '📡 [AdminAuthProvider] Auth state changed: ${user != null ? "User logged in (${user.uid})" : "No user logged in"}',
+      );
+
       if (user != null) {
+        print('👤 [AdminAuthProvider] User found: ${user.email}');
+
         // Cancel previous subscription
         await _adminSubscription?.cancel();
-        
+        print('🔄 [AdminAuthProvider] Previous subscription cancelled');
+
         // Check if user has admin privileges
+        print(
+          '🔍 [AdminAuthProvider] Checking admin privileges for UID: ${user.uid}',
+        );
         final hasPrivileges = await _authService.hasAdminPrivileges(user.uid);
+        print('✅ [AdminAuthProvider] Has admin privileges: $hasPrivileges');
+
         if (!hasPrivileges) {
+          print(
+            '❌ [AdminAuthProvider] Access denied! User does not have admin privileges',
+          );
+          print('🔐 [AdminAuthProvider] Signing out user...');
           await _authService.signOut();
           _currentAdmin = null;
           _errorMessage = 'Access denied. Admin privileges required.';
+          print(
+            '❌ [AdminAuthProvider] User signed out due to insufficient privileges',
+          );
           notifyListeners();
           return;
         }
-        
-        // Subscribe to real-time admin profile updates
-        _adminSubscription = _authService.getAdminProfileStream(user.uid).listen(
-          (adminUser) {
-            _currentAdmin = adminUser;
-            if (adminUser == null || !adminUser.isActive) {
-              _errorMessage = 'Admin account is inactive.';
-            } else {
-              _errorMessage = null;
-            }
-            notifyListeners();
-          },
-          onError: (error) {
-            _errorMessage = error.toString();
-            notifyListeners();
-          },
+
+        print(
+          '📺 [AdminAuthProvider] Subscribing to admin profile stream for UID: ${user.uid}',
         );
+        // Subscribe to real-time admin profile updates
+        _adminSubscription = _authService
+            .getAdminProfileStream(user.uid)
+            .listen(
+              (adminUser) {
+                print(
+                  '📥 [AdminAuthProvider] Admin profile received from stream',
+                );
+                if (adminUser != null) {
+                  print(
+                    '✅ [AdminAuthProvider] Admin User: ${adminUser.email}, Role: ${adminUser.role}, Active: ${adminUser.isActive}',
+                  );
+                } else {
+                  print('⚠️ [AdminAuthProvider] Admin user is NULL!');
+                }
+
+                _currentAdmin = adminUser;
+                if (adminUser == null || !adminUser.isActive) {
+                  _errorMessage = 'Admin account is inactive.';
+                  print(
+                    '❌ [AdminAuthProvider] Admin account is inactive or null',
+                  );
+                } else {
+                  _errorMessage = null;
+                  print(
+                    '✅ [AdminAuthProvider] Admin account is active and ready',
+                  );
+                }
+                print('🔔 [AdminAuthProvider] Notifying listeners...');
+                notifyListeners();
+              },
+              onError: (error) {
+                print(
+                  '❌ [AdminAuthProvider] Error in admin profile stream: $error',
+                );
+                _errorMessage = error.toString();
+                notifyListeners();
+              },
+            );
       } else {
+        print('👋 [AdminAuthProvider] User logged out');
         await _adminSubscription?.cancel();
         _currentAdmin = null;
+        print('🔔 [AdminAuthProvider] Notifying listeners (logged out)...');
         notifyListeners();
       }
     });
   }
 
   // Sign in
-  Future<bool> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signIn({required String email, required String password}) async {
     try {
+      print('🔐 [AdminAuthProvider] Starting sign in process for: $email');
       _isLoading = true;
       _errorMessage = null;
       notifyListeners();
 
+      print(
+        '📞 [AdminAuthProvider] Calling auth service signInWithEmailAndPassword...',
+      );
       _currentAdmin = await _authService.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
+      print(
+        '✅ [AdminAuthProvider] Sign in completed. Admin: ${_currentAdmin?.email ?? "null"}',
+      );
       _isLoading = false;
       notifyListeners();
-      return _currentAdmin != null;
+
+      final success = _currentAdmin != null;
+      print('📊 [AdminAuthProvider] Sign in success: $success');
+      return success;
     } catch (e) {
+      print('❌ [AdminAuthProvider] Sign in error: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -115,7 +175,7 @@ class AdminAuthProvider extends ChangeNotifier {
       notifyListeners();
 
       await _authService.resetPassword(email);
-      
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -128,12 +188,9 @@ class AdminAuthProvider extends ChangeNotifier {
   }
 
   // Update admin profile
-  Future<bool> updateProfile({
-    String? name,
-    String? photoUrl,
-  }) async {
+  Future<bool> updateProfile({String? name, String? photoUrl}) async {
     if (_currentAdmin == null) return false;
-    
+
     try {
       _isLoading = true;
       _errorMessage = null;
@@ -170,7 +227,7 @@ class AdminAuthProvider extends ChangeNotifier {
       notifyListeners();
 
       _currentAdmin = await _authService.getAdminProfile(uid);
-      
+
       if (_currentAdmin == null || !_currentAdmin!.isActive) {
         _errorMessage = 'Admin account not found or inactive.';
       }
@@ -191,6 +248,4 @@ class AdminAuthProvider extends ChangeNotifier {
 
 // Global instance
 final adminAuthProvider = AdminAuthProvider();
-
-
 

@@ -5,7 +5,6 @@ import '../../../widgets/dashboard/stats_cards.dart';
 import '../../../widgets/dashboard/analytics_charts.dart';
 import '../../../widgets/dashboard/recent_activities.dart';
 import '../../../widgets/dashboard/quick_actions.dart';
-import '../../../widgets/dashboard/live_monitoring.dart';
 
 class DashboardModule extends StatefulWidget {
   const DashboardModule({super.key});
@@ -44,7 +43,6 @@ class _DashboardModuleState extends State<DashboardModule>
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveBreakpoints.of(context).isMobile;
-    final isTablet = ResponsiveBreakpoints.of(context).isTablet;
     final screenWidth = MediaQuery.of(context).size.width;
 
     // Use stacked layout for screens smaller than 700px to avoid overflow
@@ -66,30 +64,8 @@ class _DashboardModuleState extends State<DashboardModule>
 
             const SizedBox(height: AdminTheme.spacingXl),
 
-            // Charts and monitoring
-            if (shouldStack || isMobile) ...[
-              // Mobile/Small tablet layout - stacked
-              const AnalyticsCharts(),
-              const SizedBox(height: AdminTheme.spacingXl),
-              const LiveMonitoring(),
-            ] else ...[
-              // Desktop/Tablet layout - side by side
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Charts section
-                  Expanded(
-                    flex: isTablet ? 1 : 2,
-                    child: const AnalyticsCharts(),
-                  ),
-
-                  const SizedBox(width: AdminTheme.spacingLg),
-
-                  // Live monitoring section
-                  Expanded(flex: 1, child: const LiveMonitoring()),
-                ],
-              ),
-            ],
+            // Charts
+            const AnalyticsCharts(),
 
             const SizedBox(height: AdminTheme.spacingXl),
 
@@ -315,5 +291,3 @@ class _DashboardModuleState extends State<DashboardModule>
     return '$hour:$minute $period';
   }
 }
-
-

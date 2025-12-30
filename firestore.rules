@@ -1,0 +1,442 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // HELPER FUNCTIONS
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ==========================================
+    // USERS & SOCIAL CONNECTIONS
+    // ==========================================
+    match /users/{userId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == userId;
+      // Allow update if:
+      // 1. User is owner (updating their own document), OR
+      // 2. Any signed-in user is updating coins or coinsUpdatedAt (for payment transactions)
+      // This allows payment transactions where coins are deducted
+      allow update: if isSignedIn() && (
+        isOwner(userId) ||
+        // Allow updates to coins and coinsUpdatedAt (payment transactions)
+        (request.resource.data.keys().hasAny(['coins', 'coinsUpdatedAt']))
+      );
+      allow delete: if isOwner(userId);
+
+      match /following/{followedId} {
+        allow read, list: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      match /followers/{followerId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn();
+      }
+      
+      match /security/{settingsId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /sessions/{sessionId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      match /stats/{metricId} {
+        allow read, write: if isSignedIn(); 
+      }
+      
+      // 🔥 NEW: Economic Engine - User Transaction History
+      match /transactions/{transactionId} {
+        allow read, list: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn();
+        allow update, delete: if false; // Transactions are immutable
+      }
+    }
+    
+    // ==========================================
+    // CREATOR PROFILES & ONLINE SESSIONS
+    // ==========================================
+    match /creators/{creatorId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(creatorId);
+      // Allow update if:
+      // 1. Owner is updating their own document, OR
+      // 2. Any signed-in user is updating totalEarnings, earningsUpdatedAt, or isBusy (for payment transactions and call management)
+      // 3. Any signed-in user is updating live/status fields
+      // This allows payment transactions where users update creator earnings
+      allow update: if isSignedIn() && (
+        isOwner(creatorId) || 
+        // Allow updates if payment/status fields are being updated
+        // For transactions, check if these fields exist in request.resource.data (the updated document)
+        (request.resource.data.keys().hasAny(['totalEarnings', 'earningsUpdatedAt', 'isBusy'])) ||
+        // Allow updates to live/status fields (check if being changed)
+        (resource.exists && request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLive', 'liveStartedAt', 'liveViewerCount', 'updatedAt']))
+      );
+      allow delete: if isOwner(creatorId);
+      
+      // 🔥 NEW: Economic Engine - Creator Transaction History (Earnings)
+      match /transactions/{transactionId} {
+        allow read, list: if isSignedIn() && isOwner(creatorId);
+        allow create: if isSignedIn();
+        allow update, delete: if false; // Transactions are immutable
+      }
+    }
+
+    match /creator_online_sessions/{creatorId} {
+      allow read, list: if isSignedIn();
+      match /sessions/{sessionId} {
+        allow read, list, create, update, delete: if isSignedIn() && request.auth.uid == creatorId;
+      }
+    }
+
+    match /creator_requests/{requestId} {
+      allow read, list, create, update: if isSignedIn() && request.auth.uid == requestId;
+    }
+
+    // ==========================================
+    // KYC & BANK DETAILS
+    // ==========================================
+    match /kyc_submissions/{userId} {
+      allow read, get: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId && resource.data.uid == userId;
+      allow delete: if isOwner(userId);
+    }
+
+    match /bank_details/{userId} {
+      allow read, get: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId && resource.data.uid == userId;
+      allow delete: if isOwner(userId);
+    }
+    
+    // ==========================================
+    // WITHDRAW REQUESTS
+    // ==========================================
+    match /withdraw_requests/{requestId} {
+      allow read, get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn();
+    }
+
+    // ==========================================
+    // CHAT SYSTEM (NEW - OPTIMIZED)
+    // ==========================================
+    
+    // Conversations collection
+    match /conversations/{conversationId} {
+      // Helper: check if user is participant in existing resource
+      function isParticipant() {
+        return resource != null 
+            && resource.data.keys().hasAll(['participants'])
+            && request.auth.uid in resource.data.participants;
+      }
+      
+      // Helper: check if user is participant in new/updated resource
+      function isParticipantInRequest() {
+        return request.resource.data.keys().hasAll(['participants'])
+            && request.auth.uid in request.resource.data.participants;
+      }
+      
+      // Read: only participants can read conversation
+      allow read, get: if isSignedIn() && (
+        resource == null || isParticipant()
+      );
+      
+      // List: only show conversations where user is participant
+      allow list: if isSignedIn();
+      
+      // Create: user must be in participants array
+      allow create: if isSignedIn() 
+                   && request.resource.data.keys().hasAll(['participants', 'conversationId'])
+                   && isParticipantInRequest();
+      
+      // Update: only participants can update
+      // Allow updates for: lastMessage, unreadCount, pinnedBy, mutedBy, deletedBy, lastMessageAt, lastMessageType, lastMessageSenderId
+      // Note: We allow any field update as long as user is participant (for flexibility with nested fields like unreadCount.$userId)
+      // Also ensure user remains in participants (if participants field is being updated)
+      allow update: if isSignedIn() 
+                   && resource != null
+                   && resource.data.keys().hasAll(['participants'])
+                   && request.auth.uid in resource.data.participants
+                   && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['participants']) 
+                       || (request.resource.data.keys().hasAll(['participants']) && request.auth.uid in request.resource.data.participants));
+      
+      // Delete: only participants can delete (hard delete - not recommended)
+      allow delete: if isSignedIn() && isParticipant();
+    }
+    
+    // Messages collection
+    match /messages/{messageId} {
+      // Read: only sender or receiver can read individual messages
+      // Allow read even if resource doesn't exist (for real-time listeners)
+      allow read, get: if isSignedIn() && (
+        resource == null ||
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.receiverId
+      );
+      
+      // List: allow queries for signed-in users
+      // Security is enforced by:
+      // 1. App-level query filters (where conversationId == X)
+      // 2. Conversation rules (only participants can read conversations)
+      // 3. Individual document reads still check sender/receiver
+      allow list: if isSignedIn();
+      
+      // Create: user must be sender OR receiver (for call messages)
+      allow create: if isSignedIn() 
+                   && request.resource.data.keys().hasAll(['senderId', 'receiverId', 'conversationId'])
+                   && (request.auth.uid == request.resource.data.senderId ||
+                       (request.resource.data.type == 'call' && request.auth.uid == request.resource.data.receiverId))
+                   && request.resource.data.conversationId is string
+                   && request.resource.data.conversationId != '';
+      
+      // Update: only receiver can update (for marking as seen)
+      allow update: if isSignedIn() 
+                   && resource != null
+                   && request.auth.uid == resource.data.receiverId
+                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
+      
+      // No delete allowed (messages are permanent)
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // DIRECT MESSAGING (FIXED FOR PERMISSIONS)
+    // ==========================================
+    match /chats/{chatId} {
+      // Helper function to check if user is in chatId
+      // ChatId format: userId1_userId2 (sorted alphabetically)
+      function isUserInChatId() {
+        return chatId.matches('.*' + request.auth.uid + '.*');
+      }
+
+      // Allow list for ChatList UI (where participants arrayContains userId)
+      allow list: if isSignedIn(); 
+
+      // Allow read/get if user is in chatId (simple check)
+      allow read, get: if isSignedIn() && isUserInChatId();
+      
+      // Allow create if user is in participants array
+      allow create: if isSignedIn() 
+                   && request.resource.data.keys().hasAll(['participants'])
+                   && request.auth.uid in request.resource.data.participants;
+      
+      // Allow update if user is in chatId (for typing/unread updates)
+      allow update: if isSignedIn() && isUserInChatId();
+      
+      // Allow delete if user is in chatId
+      allow delete: if isSignedIn() && isUserInChatId();
+      
+      match /messages/{messageId} {
+        // Simple: if user is in chatId, they can list messages
+        allow list: if isSignedIn() && isUserInChatId();
+        
+        // Read: if user is in chatId OR if user is sender/receiver
+        allow get, read: if isSignedIn() && (
+          isUserInChatId() ||
+          (resource.exists && resource.data.keys().hasAll(['senderId', 'receiverId']) && 
+           (request.auth.uid == resource.data.senderId ||
+            request.auth.uid == resource.data.receiverId))
+        );
+        
+        // Create: user must be sender and in chatId
+        allow create: if isSignedIn() 
+                     && request.resource.data.keys().hasAll(['senderId'])
+                     && request.auth.uid == request.resource.data.senderId
+                     && isUserInChatId();
+        
+        // Update: only receiver can update status
+        allow update: if isSignedIn() 
+                     && resource.data.keys().hasAll(['receiverId'])
+                     && request.auth.uid == resource.data.receiverId 
+                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        
+        // No delete allowed
+        allow delete: if false;
+      }
+    }
+    
+    // ==========================================
+    // LIVE STREAMING & LIVE CHAT
+    // ==========================================
+    match /live_sessions/{liveId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        resource != null && resource.data.creatorId == request.auth.uid
+      );
+    }
+
+    match /live_chats/{liveId} {
+      allow read, list: if isSignedIn();
+      match /messages/{messageId} {
+        allow read, list, get: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    match /live_viewers/{liveId} {
+      allow read, list: if isSignedIn();
+      match /viewers/{viewerId} {
+        allow read, list: if isSignedIn();
+        allow create, delete: if isSignedIn() && (
+          request.auth.uid == viewerId || 
+          get(/databases/$(database)/documents/live_sessions/$(liveId)).data.creatorId == request.auth.uid
+        );
+      }
+    }
+
+    match /live_blocks/{liveId} {
+      allow read, list: if isSignedIn();
+      match /blocked/{viewerId} {
+        allow read, list, get: if isSignedIn();
+        allow write: if isSignedIn() && get(/databases/$(database)/documents/live_sessions/$(liveId)).data.creatorId == request.auth.uid;
+      }
+    }
+
+    match /live_history/{liveId} {
+      allow read, list: if isSignedIn();
+      allow create, update: if isSignedIn() && (
+        request.resource.data.creatorId == request.auth.uid ||
+        (resource != null && resource.data.creatorId == request.auth.uid)
+      );
+      allow delete: if isSignedIn() && (
+        resource != null && resource.data.creatorId == request.auth.uid
+      );
+    }
+
+    // ==========================================
+    // APP SETTINGS & OFFERS
+    // ==========================================
+    match /app_settings/{settingId} {
+      // Allow authenticated users to read app settings (offers, etc.)
+      allow read: if isSignedIn();
+      // Only admins can write (for now, deny all writes from client)
+      allow write: if false;
+    }
+    // ADMIN PANEL RULES (NEWLY ADDED)
+    // ==========================================
+    
+    match /admins/{adminId} {
+      // Kisi bhi logged-in user ko check karne do ki wo admin hai ya nahi
+      allow read: if isSignedIn();
+      // Admin create/write sirf Firebase Console se hoga ya existing admin karega
+      allow write: if false; 
+    }
+
+    match /reports/{reportId} {
+      // Sirf logged-in users report create kar sakte hain
+      allow create: if isSignedIn();
+      // Sirf admin hi reports dekh sakta hai (Iske liye aapko 'admins' check use karna hoga)
+      // Filhal read access de raha hoon taaki aapka kaam na ruke
+      allow read, list: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // ==========================================
+    // CALLS, TRANSACTIONS & SYSTEM
+    // ==========================================
+    match /call_requests/{callId} {
+      // Helper: check if user is caller (from resource or request)
+      function isCaller() {
+        return (resource != null && resource.data.keys().hasAny(['callerId']) && resource.data.callerId == request.auth.uid) ||
+               (request.resource.data.keys().hasAny(['callerId']) && request.resource.data.callerId == request.auth.uid);
+      }
+      
+      // Helper: check if user is creator (from resource or request)
+      function isCreator() {
+        return (resource != null && resource.data.keys().hasAny(['creatorId']) && resource.data.creatorId == request.auth.uid) ||
+               (request.resource.data.keys().hasAny(['creatorId']) && request.resource.data.creatorId == request.auth.uid);
+      }
+      
+      // Helper: check if user is receiver (from resource or request)
+      function isReceiver() {
+        return (resource != null && resource.data.keys().hasAny(['receiverId']) && resource.data.receiverId == request.auth.uid) ||
+               (request.resource.data.keys().hasAny(['receiverId']) && request.resource.data.receiverId == request.auth.uid);
+      }
+      
+      allow read, list, get: if isSignedIn();
+      
+      // Allow update if user is caller, creator, OR receiver
+      // Receiver can accept/reject calls
+      // Caller/Creator can end calls
+      // Check both resource (existing) and request.resource (new/updated) data
+      allow update: if isSignedIn() && (
+        isCaller() || 
+        isCreator() || 
+        isReceiver()
+      );
+      
+      allow delete: if isSignedIn() && (isCaller() || isCreator());
+      
+      // Allow create if:
+      // 1. User is authenticated AND (is the caller OR is the creator making the call)
+      //    - User → Creator call: auth.uid == callerId
+      //    - Creator → User call: auth.uid == creatorId
+      // Note: Live streaming check removed to prevent permission issues
+      // App-level logic should handle preventing calls during live streams
+      allow create: if isSignedIn() 
+                   && request.resource.data.keys().hasAny(['callerId', 'creatorId'])
+                   && (
+                     request.auth.uid == request.resource.data.callerId ||
+                     request.auth.uid == request.resource.data.creatorId
+                   );
+    }
+
+    match /transactions/{transactionId} {
+      allow read, list, create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /user_blocks/{blockerId} {
+      allow read, list: if isSignedIn();
+      match /blocked/{blockedUserId} { 
+        allow read, get, list: if isSignedIn(); 
+        allow write: if isSignedIn() && request.auth.uid == blockerId; 
+      }
+    }
+
+    match /presence/{userId} {
+      allow read, list: if isSignedIn();
+      allow write: if isOwner(userId);
+    }
+
+    match /notification_requests/{notificationId} {
+      allow create, read, list: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      // Read individual notification: only if user is the recipient
+      allow read, get: if isSignedIn() && (
+        resource != null && resource.data.toUid == request.auth.uid
+      );
+      
+      // List queries: allow for signed-in users (query will filter by toUid)
+      // This allows queries like: notifications.where('toUid', isEqualTo: userId)
+      allow list: if isSignedIn();
+      
+      // Create: any signed-in user can create (Cloud Functions create notifications)
+      allow create: if isSignedIn(); 
+      
+      // Update/Delete: only recipient can update/delete their own notifications
+      allow update, delete: if isSignedIn() && (
+        resource != null && resource.data.toUid == request.auth.uid
+      );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

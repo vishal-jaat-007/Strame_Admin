@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import '../../theme/admin_theme.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
+import '../../services/recent_activity_service.dart';
+import '../../screens/dashboard/all_activities_screen.dart';
 
 class RecentActivities extends StatelessWidget {
   const RecentActivities({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final activityService = RecentActivityService();
+
     return GlassCard(
       child: Container(
         padding: app_utils.AppResponsiveUtils.responsivePadding(context),
@@ -36,7 +40,12 @@ class RecentActivities extends StatelessWidget {
 
                 TextButton(
                   onPressed: () {
-                    // TODO: Show all activities
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AllActivitiesScreen(),
+                      ),
+                    );
                   },
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.symmetric(
@@ -68,75 +77,59 @@ class RecentActivities extends StatelessWidget {
             const SizedBox(height: AdminTheme.spacingLg),
 
             // Activities list
-            ...List.generate(8, (index) => _buildActivityItem(context, index)),
+            StreamBuilder<List<ActivityItem>>(
+              stream: activityService.getActivitiesStream(limit: 5),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error loading activities',
+                      style: TextStyle(color: AdminTheme.errorRed),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AdminTheme.primaryPurple,
+                      ),
+                    ),
+                  );
+                }
+
+                final activities = snapshot.data!;
+
+                if (activities.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'No recent activities',
+                        style: TextStyle(color: AdminTheme.textSecondary),
+                      ),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children:
+                      activities
+                          .map(
+                            (activity) => _buildActivityItem(context, activity),
+                          )
+                          .toList(),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActivityItem(BuildContext context, int index) {
-    final activities = [
-      {
-        'icon': Icons.person_add,
-        'title': 'New user registered',
-        'subtitle': 'John Doe joined the platform',
-        'time': '2 minutes ago',
-        'color': AdminTheme.electricBlue,
-      },
-      {
-        'icon': Icons.star,
-        'title': 'Creator approved',
-        'subtitle': 'Sarah Smith became a creator',
-        'time': '5 minutes ago',
-        'color': AdminTheme.successGreen,
-      },
-      {
-        'icon': Icons.call_end,
-        'title': 'Call completed',
-        'subtitle': 'Voice call lasted 15 minutes',
-        'time': '8 minutes ago',
-        'color': AdminTheme.warningOrange,
-      },
-      {
-        'icon': Icons.account_balance_wallet,
-        'title': 'Withdrawal processed',
-        'subtitle': '₹2,500 paid to creator',
-        'time': '12 minutes ago',
-        'color': AdminTheme.primaryPurple,
-      },
-      {
-        'icon': Icons.live_tv,
-        'title': 'Live session ended',
-        'subtitle': 'Creator had 45 viewers',
-        'time': '18 minutes ago',
-        'color': AdminTheme.errorRed,
-      },
-      {
-        'icon': Icons.block,
-        'title': 'User blocked',
-        'subtitle': 'Violation of community guidelines',
-        'time': '25 minutes ago',
-        'color': AdminTheme.errorRed,
-      },
-      {
-        'icon': Icons.trending_up,
-        'title': 'Revenue milestone',
-        'subtitle': 'Daily earnings crossed ₹10,000',
-        'time': '1 hour ago',
-        'color': AdminTheme.successGreen,
-      },
-      {
-        'icon': Icons.notification_important,
-        'title': 'System alert',
-        'subtitle': 'Server maintenance scheduled',
-        'time': '2 hours ago',
-        'color': AdminTheme.warningOrange,
-      },
-    ];
-
-    final activity = activities[index];
-
+  Widget _buildActivityItem(BuildContext context, ActivityItem activity) {
     return Container(
       margin: const EdgeInsets.only(bottom: AdminTheme.spacingMd),
       padding: const EdgeInsets.all(AdminTheme.spacingMd),
@@ -152,14 +145,10 @@ class RecentActivities extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: (activity['color'] as Color).withOpacity(0.2),
+              color: activity.color.withOpacity(0.2),
               borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
             ),
-            child: Icon(
-              activity['icon'] as IconData,
-              color: activity['color'] as Color,
-              size: 20,
-            ),
+            child: Icon(activity.icon, color: activity.color, size: 20),
           ),
 
           const SizedBox(width: AdminTheme.spacingMd),
@@ -171,7 +160,7 @@ class RecentActivities extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  activity['title'] as String,
+                  activity.title,
                   style: TextStyle(
                     fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
                       context,
@@ -185,7 +174,7 @@ class RecentActivities extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  activity['subtitle'] as String,
+                  activity.subtitle,
                   style: TextStyle(
                     fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
                       context,
@@ -205,7 +194,7 @@ class RecentActivities extends StatelessWidget {
           // Time
           Flexible(
             child: Text(
-              activity['time'] as String,
+              _formatTime(activity.timestamp),
               style: AdminTheme.labelSmall.copyWith(
                 color: AdminTheme.textTertiary,
               ),
@@ -217,6 +206,22 @@ class RecentActivities extends StatelessWidget {
       ),
     );
   }
+
+  String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      // Simple date format if older than 7 days
+      return '${timestamp.day}/${timestamp.month}';
+    }
+  }
 }
-
-

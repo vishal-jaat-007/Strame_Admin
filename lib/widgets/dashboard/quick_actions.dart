@@ -4,6 +4,11 @@ import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
 import '../common/animated_button.dart';
 
+import '../../screens/admin/add_admin_screen.dart';
+
+import '../../screens/admin/pending_approvals_screen.dart';
+import '../../screens/admin/withdrawal_requests_screen.dart';
+
 class QuickActions extends StatelessWidget {
   const QuickActions({super.key});
 
@@ -38,7 +43,12 @@ class QuickActions extends StatelessWidget {
               subtitle: 'Create new admin account',
               color: AdminTheme.primaryPurple,
               onPressed: () {
-                // TODO: Implement add admin
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddAdminScreen(),
+                  ),
+                );
               },
             ),
 
@@ -49,7 +59,12 @@ class QuickActions extends StatelessWidget {
               subtitle: '3 creator requests waiting',
               color: AdminTheme.warningOrange,
               onPressed: () {
-                // TODO: Navigate to approvals
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PendingApprovalsScreen(),
+                  ),
+                );
               },
               hasNotification: true,
             ),
@@ -61,7 +76,12 @@ class QuickActions extends StatelessWidget {
               subtitle: '5 withdrawal requests',
               color: AdminTheme.successGreen,
               onPressed: () {
-                // TODO: Navigate to withdrawals
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WithdrawalRequestsScreen(),
+                  ),
+                );
               },
               hasNotification: true,
             ),
@@ -379,5 +399,3 @@ class QuickActions extends StatelessWidget {
     );
   }
 }
-
-

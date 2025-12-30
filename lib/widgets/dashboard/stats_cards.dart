@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:responsive_framework/responsive_framework.dart';
 import '../../theme/admin_theme.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
@@ -33,94 +32,184 @@ class _StatsCardsState extends State<StatsCards> {
   }
 
   void _setupRealTimeListeners() {
-    // Listen to users collection
-    _firestore.collection('users').snapshots().listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          totalUsers = snapshot.docs.length;
-          totalCreators =
-              snapshot.docs.where((doc) {
+    // Listen to users collection for total users count (only viewers)
+    _firestore
+        .collection('users')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              int viewersCount = 0;
+              for (var doc in snapshot.docs) {
                 final data = doc.data();
-                return data['role'] == 'creator';
-              }).length;
-        });
-      }
-    });
+                final role = data['role'] as String?;
 
-    // Listen to creators collection for online status
-    _firestore.collection('creators').snapshots().listen((snapshot) {
-      if (mounted) {
-        setState(() {
-          onlineCreators =
-              snapshot.docs.where((doc) {
-                final data = doc.data();
-                return data['isOnline'] == true;
-              }).length;
+                // Exclude creators from total users count
+                if (role != 'creator') {
+                  viewersCount++;
+                }
+              }
 
-          liveCreators =
-              snapshot.docs.where((doc) {
-                final data = doc.data();
-                return data['isLive'] == true;
-              }).length;
-        });
-      }
-    });
-
-    // Listen to transactions for earnings
-    _firestore.collection('transactions').snapshots().listen((snapshot) {
-      if (mounted) {
-        double total = 0.0;
-        double today = 0.0;
-        final todayStart = DateTime.now().copyWith(
-          hour: 0,
-          minute: 0,
-          second: 0,
+              setState(() {
+                totalUsers = viewersCount;
+              });
+              debugPrint('📊 [Stats] Total Users (Viewers only): $totalUsers');
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [Stats] Error fetching users: $e');
+          },
         );
 
-        for (var doc in snapshot.docs) {
-          final data = doc.data();
-          final amount = (data['amount'] ?? 0).toDouble();
-          final timestamp = (data['createdAt'] as Timestamp?)?.toDate();
+    // Listen to creators collection for online status, live status, and earnings
+    _firestore
+        .collection('creators')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              double creatorsTotalEarnings = 0.0;
+              int online = 0;
+              int live = 0;
+              int approved = 0;
 
-          total += amount;
+              for (var doc in snapshot.docs) {
+                final data = doc.data();
 
-          if (timestamp != null && timestamp.isAfter(todayStart)) {
-            today += amount;
-          }
-        }
+                // Count approved creators (actual total creators)
+                if (data['isApproved'] == true) {
+                  approved++;
+                }
 
-        setState(() {
-          totalEarnings = total;
-          todayEarnings = today;
-        });
-      }
-    });
+                // Count online creators (matching app logic exactly)
+                // Creator is "online" if: isOnline=true AND NOT busy AND at least one mode enabled
+                final isOnline = data['isOnline'] == true;
+                final isBusy = data['isBusy'] == true;
+                final isVoiceEnabled = data['isVoiceEnabled'] == true;
+                final isVideoEnabled = data['isVideoEnabled'] == true;
+                final isLive = data['isLive'] == true;
 
-    // Listen to call requests for active calls
+                if (isOnline &&
+                    !isBusy &&
+                    (isVoiceEnabled || isVideoEnabled || isLive)) {
+                  online++;
+                }
+
+                // Count live creators
+                if (isLive) {
+                  live++;
+                }
+
+                // Sum up total earnings from all creators
+                final earnings =
+                    (data['totalEarnings'] as num?)?.toDouble() ?? 0.0;
+                creatorsTotalEarnings += earnings;
+              }
+
+              setState(() {
+                // Total Creators = only approved (verified) creators
+                totalCreators = approved;
+                onlineCreators = online;
+                liveCreators = live;
+                totalEarnings = creatorsTotalEarnings;
+              });
+
+              debugPrint(
+                '📊 [Stats] Total Creators (Verified): $totalCreators, Online: $onlineCreators, Live: $liveCreators',
+              );
+              debugPrint(
+                '📊 [Stats] Total Earnings (sum of all creators): ₹$totalEarnings',
+              );
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [Stats] Error fetching creators: $e');
+          },
+        );
+
+    // Listen to transactions for today's earnings
+    _firestore
+        .collection('transactions')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              double today = 0.0;
+              final todayStart = DateTime.now().copyWith(
+                hour: 0,
+                minute: 0,
+                second: 0,
+                millisecond: 0,
+              );
+
+              for (var doc in snapshot.docs) {
+                final data = doc.data();
+                final type = data['type'] as String?;
+
+                // Only count call earnings (voice/video), not recharges
+                if (type == 'voice' || type == 'video') {
+                  final timestamp = (data['createdAt'] as Timestamp?)?.toDate();
+
+                  if (timestamp != null && timestamp.isAfter(todayStart)) {
+                    // Convert coins to rupees: amount is in coins, convert to rupees
+                    // 5 coins = 1 rupee
+                    final coinsAmount =
+                        (data['amount'] as num?)?.toDouble() ?? 0.0;
+                    final rupeesAmount =
+                        coinsAmount * 0.2; // 1 coin = 0.2 rupees
+                    today += rupeesAmount;
+                  }
+                }
+              }
+
+              setState(() {
+                todayEarnings = today;
+              });
+              debugPrint('📊 [Stats] Today Earnings: ₹$todayEarnings');
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [Stats] Error fetching transactions: $e');
+          },
+        );
+
+    // Listen to call requests for active calls (both 'accepted' and 'ongoing')
     _firestore
         .collection('call_requests')
-        .where('status', isEqualTo: 'ongoing')
+        .where('status', whereIn: ['accepted', 'ongoing'])
         .snapshots()
-        .listen((snapshot) {
-          if (mounted) {
-            setState(() {
-              activeCalls = snapshot.docs.length;
-            });
-          }
-        });
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              setState(() {
+                activeCalls = snapshot.docs.length;
+              });
+              debugPrint('📊 [Stats] Active Calls: $activeCalls');
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [Stats] Error fetching active calls: $e');
+          },
+        );
 
     // Listen to live sessions for active lives
     _firestore
         .collection('live_sessions')
-        .where('isActive', isEqualTo: true)
+        .where('status', isEqualTo: 'live')
         .snapshots()
-        .listen((snapshot) {
-          if (mounted) {
-            setState(() {
-              activeLives = snapshot.docs.length;
-            });
-          }
-        });
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              setState(() {
+                activeLives = snapshot.docs.length;
+              });
+              debugPrint('📊 [Stats] Active Lives: $activeLives');
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [Stats] Error fetching live sessions: $e');
+          },
+        );
   }
 
   @override

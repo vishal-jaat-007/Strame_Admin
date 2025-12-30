@@ -46,18 +46,12 @@ class _AnimatedButtonState extends State<AnimatedButton>
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: 0.95,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     _glowAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -112,16 +106,19 @@ class _AnimatedButtonState extends State<AnimatedButton>
               child: ElevatedButton(
                 onPressed: widget.isLoading ? null : widget.onPressed,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.backgroundColor ?? AdminTheme.primaryPurple,
+                  backgroundColor:
+                      widget.backgroundColor ?? AdminTheme.primaryPurple,
                   foregroundColor: widget.foregroundColor ?? Colors.white,
-                  padding: widget.padding ?? 
-                    const EdgeInsets.symmetric(
-                      horizontal: AdminTheme.spacingXl,
-                      vertical: AdminTheme.spacingMd,
-                    ),
+                  padding:
+                      widget.padding ??
+                      const EdgeInsets.symmetric(
+                        horizontal: AdminTheme.spacingXl,
+                        vertical: AdminTheme.spacingMd,
+                      ),
                   elevation: widget.elevation ?? 0,
                   shadowColor: Colors.transparent,
-                  minimumSize: widget.minimumSize ?? const Size(double.infinity, 56),
+                  minimumSize:
+                      widget.minimumSize ?? const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                       widget.borderRadius ?? AdminTheme.radiusSm,
@@ -137,6 +134,3 @@ class _AnimatedButtonState extends State<AnimatedButton>
     );
   }
 }
-
-
-
