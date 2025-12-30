@@ -20,7 +20,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _sidebarController;
   late Animation<double> _sidebarAnimation;
 
-  bool _isSidebarCollapsed = false; // Start expanded to show labels
+  // Separate states for mobile and desktop
+  bool _isDesktopSidebarCollapsed = false;
+  bool _isMobileSidebarOpen = false;
+
   NavigationItem _selectedItem = NavigationItem.dashboard;
 
   @override
@@ -47,15 +50,20 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _toggleSidebar() {
-    setState(() {
-      _isSidebarCollapsed = !_isSidebarCollapsed;
-    });
+    final isMobile = ResponsiveBreakpoints.of(context).isMobile;
 
-    if (_isSidebarCollapsed) {
-      _sidebarController.forward();
-    } else {
-      _sidebarController.reverse();
-    }
+    setState(() {
+      if (isMobile) {
+        _isMobileSidebarOpen = !_isMobileSidebarOpen;
+      } else {
+        _isDesktopSidebarCollapsed = !_isDesktopSidebarCollapsed;
+        if (_isDesktopSidebarCollapsed) {
+          _sidebarController.forward();
+        } else {
+          _sidebarController.reverse();
+        }
+      }
+    });
   }
 
   void _onNavigationItemSelected(NavigationItem item) {
@@ -91,7 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           return SizedBox(
                             width: _sidebarAnimation.value,
                             child: AdminSidebar(
-                              isCollapsed: _isSidebarCollapsed,
+                              isCollapsed: _isDesktopSidebarCollapsed,
                               selectedItem: _selectedItem,
                               onItemSelected: _onNavigationItemSelected,
                               onToggle: _toggleSidebar,
@@ -108,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           AdminHeader(
                             selectedItem: _selectedItem,
                             onMenuPressed: _toggleSidebar,
-                            isSidebarCollapsed: _isSidebarCollapsed,
+                            isSidebarCollapsed: _isDesktopSidebarCollapsed,
                           ),
 
                           // Content
@@ -123,7 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
 
               // Mobile sidebar - overlay drawer
-              if (isMobile && !_isSidebarCollapsed)
+              if (isMobile && _isMobileSidebarOpen)
                 Positioned(
                   left: 0,
                   top: 0,
@@ -157,4 +165,3 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 }
-
