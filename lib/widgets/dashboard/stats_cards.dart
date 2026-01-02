@@ -195,13 +195,22 @@ class _StatsCardsState extends State<StatsCards> {
     // Listen to live sessions for active lives
     _firestore
         .collection('live_sessions')
-        .where('status', isEqualTo: 'live')
         .snapshots()
         .listen(
           (snapshot) {
             if (mounted) {
+              int count = 0;
+              for (var doc in snapshot.docs) {
+                final data = doc.data();
+                final status = data['status'] as String?;
+                final isActive = data['isActive'] == true;
+
+                if (status == 'active' || status == 'live' || isActive) {
+                  count++;
+                }
+              }
               setState(() {
-                activeLives = snapshot.docs.length;
+                activeLives = count;
               });
               debugPrint('📊 [Stats] Active Lives: $activeLives');
             }

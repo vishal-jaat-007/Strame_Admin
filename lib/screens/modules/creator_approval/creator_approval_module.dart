@@ -10,3 +10,4 @@ class CreatorApprovalModule extends StatelessWidget {
     return const PendingApprovalsScreen(isEmbedded: true);
   }
 }
+

@@ -206,6 +206,9 @@ class _AdminSidebarState extends State<AdminSidebar>
       NavigationItem.transactions,
       NavigationItem.notifications,
       NavigationItem.content,
+      NavigationItem.monetization,
+      NavigationItem.reports, // Added NavigationItem.reports
+      NavigationItem.settings,
     ];
 
     return ListView.builder(
@@ -250,7 +253,10 @@ class _AdminSidebarState extends State<AdminSidebar>
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => widget.onItemSelected(item),
+          onTap: () {
+            debugPrint('🧭 [AdminSidebar] Navigating to: ${item.title}');
+            widget.onItemSelected(item);
+          },
           borderRadius: BorderRadius.circular(AdminTheme.radiusMd),
           child: Container(
             padding: EdgeInsets.symmetric(
@@ -475,26 +481,3 @@ class _AdminSidebarState extends State<AdminSidebar>
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

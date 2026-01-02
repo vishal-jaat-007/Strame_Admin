@@ -10,3 +10,4 @@ class WithdrawalsModule extends StatelessWidget {
     return const WithdrawalRequestsScreen(isEmbedded: true);
   }
 }
+

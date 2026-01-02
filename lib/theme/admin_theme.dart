@@ -10,16 +10,22 @@ class AdminTheme {
 
   // Admin-specific colors
   static const Color sidebarDark = Color(0xFF0A0E27);
-  static const Color cardDark = Color(0xFF1A1A24);
+  static const Color cardDark = Color(
+    0xFF1E1E2A,
+  ); // Slightly lighter for better contrast
   static const Color cardDarker = Color(0xFF15151E);
+  static const Color surfaceDark = Color(0xFF1E1E2A);
   static const Color borderColor = Color(0xFF2A2A35);
-  static const Color glassStroke = Color(0x33FFFFFF);
+  static const Color glassStroke = Color(0x66FFFFFF); // More visible stroke
 
   // Status colors
   static const Color successGreen = Color(0xFF00FF87);
   static const Color warningOrange = Color(0xFFFF9500);
+  static const Color warningYellow = Color(0xFFFFCC00);
   static const Color errorRed = Color(0xFFFF3B30);
   static const Color infoBlue = Color(0xFF5A9CFF);
+  static const Color accentBlue = Color(0xFF007AFF);
+  static const Color secondaryPink = Color(0xFFFF2D55);
 
   // Text colors
   static const Color textPrimary = Colors.white;
@@ -51,7 +57,10 @@ class AdminTheme {
   );
 
   static const LinearGradient glassGradient = LinearGradient(
-    colors: [Color(0x1AFFFFFF), Color(0x0DFFFFFF)],
+    colors: [
+      Color(0xCC1A1A24),
+      Color(0xCC0A0A10),
+    ], // Much more opaque background
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -340,24 +349,3 @@ class AdminTheme {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

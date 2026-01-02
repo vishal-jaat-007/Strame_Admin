@@ -116,12 +116,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                           AdminHeader(
                             selectedItem: _selectedItem,
                             onMenuPressed: _toggleSidebar,
+                            onNavItemChanged: _onNavigationItemSelected,
                             isSidebarCollapsed: _isDesktopSidebarCollapsed,
                           ),
 
                           // Content
                           Expanded(
-                            child: AdminContent(selectedItem: _selectedItem),
+                            child: AdminContent(
+                              selectedItem: _selectedItem,
+                              onNavItemChanged: _onNavigationItemSelected,
+                            ),
                           ),
                         ],
                       ),

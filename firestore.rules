@@ -13,6 +13,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
     
+    // NEW: Check if user is an Admin
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     // ==========================================
     // USERS & SOCIAL CONNECTIONS
     // ==========================================
@@ -104,26 +109,27 @@ service cloud.firestore {
     // KYC & BANK DETAILS
     // ==========================================
     match /kyc_submissions/{userId} {
-      allow read, get: if isSignedIn() && request.auth.uid == userId;
+      allow read, list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId && resource.data.uid == userId;
-      allow delete: if isOwner(userId);
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     match /bank_details/{userId} {
-      allow read, get: if isSignedIn() && request.auth.uid == userId;
+      allow read, list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId && resource.data.uid == userId;
-      allow delete: if isOwner(userId);
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isOwner(userId) || isAdmin();
     }
     
     // ==========================================
     // WITHDRAW REQUESTS
     // ==========================================
     match /withdraw_requests/{requestId} {
-      allow read, get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if isSignedIn();
+      allow read, get, list: if isSignedIn() && (
+        resource == null || resource.data.creatorId == request.auth.uid || isAdmin()
+      );
+      allow create, update: if isSignedIn() && (request.resource.data.creatorId == request.auth.uid || isAdmin());
     }
 
     // ==========================================
@@ -316,29 +322,23 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // APP SETTINGS & OFFERS
+    // APP SETTINGS
     // ==========================================
     match /app_settings/{settingId} {
-      // Allow authenticated users to read app settings (offers, etc.)
       allow read: if isSignedIn();
-      // Only admins can write (for now, deny all writes from client)
       allow write: if false;
     }
-    // ADMIN PANEL RULES (NEWLY ADDED)
+
     // ==========================================
-    
+    // ADMIN PANEL
+    // ==========================================
     match /admins/{adminId} {
-      // Kisi bhi logged-in user ko check karne do ki wo admin hai ya nahi
-      allow read: if isSignedIn();
-      // Admin create/write sirf Firebase Console se hoga ya existing admin karega
-      allow write: if false; 
+      allow read, create, update, list: if isSignedIn();
+      allow delete: if isAdmin();
     }
 
     match /reports/{reportId} {
-      // Sirf logged-in users report create kar sakte hain
       allow create: if isSignedIn();
-      // Sirf admin hi reports dekh sakta hai (Iske liye aapko 'admins' check use karna hoga)
-      // Filhal read access de raha hoon taaki aapka kaam na ruke
       allow read, list: if isSignedIn();
       allow update, delete: if false;
     }
@@ -347,44 +347,32 @@ service cloud.firestore {
     // CALLS, TRANSACTIONS & SYSTEM
     // ==========================================
     match /call_requests/{callId} {
-      // Helper: check if user is caller (from resource or request)
-      function isCaller() {
-        return (resource != null && resource.data.keys().hasAny(['callerId']) && resource.data.callerId == request.auth.uid) ||
-               (request.resource.data.keys().hasAny(['callerId']) && request.resource.data.callerId == request.auth.uid);
-      }
-      
-      // Helper: check if user is creator (from resource or request)
-      function isCreator() {
-        return (resource != null && resource.data.keys().hasAny(['creatorId']) && resource.data.creatorId == request.auth.uid) ||
-               (request.resource.data.keys().hasAny(['creatorId']) && request.resource.data.creatorId == request.auth.uid);
-      }
-      
-      // Helper: check if user is receiver (from resource or request)
-      function isReceiver() {
-        return (resource != null && resource.data.keys().hasAny(['receiverId']) && resource.data.receiverId == request.auth.uid) ||
-               (request.resource.data.keys().hasAny(['receiverId']) && request.resource.data.receiverId == request.auth.uid);
-      }
-      
+      // Inline permissions to avoid local/global helper logic causing unexpected scope errors
       allow read, list, get: if isSignedIn();
       
-      // Allow update if user is caller, creator, OR receiver
-      // Receiver can accept/reject calls
-      // Caller/Creator can end calls
-      // Check both resource (existing) and request.resource (new/updated) data
+      // Allow update if user is caller, creator, receiver, OR ADMIN
       allow update: if isSignedIn() && (
-        isCaller() || 
-        isCreator() || 
-        isReceiver()
+        // Caller
+        ((resource != null && resource.data.keys().hasAny(['callerId']) && resource.data.callerId == request.auth.uid) ||
+         (request.resource.data.keys().hasAny(['callerId']) && request.resource.data.callerId == request.auth.uid)) ||
+        // Creator
+        ((resource != null && resource.data.keys().hasAny(['creatorId']) && resource.data.creatorId == request.auth.uid) ||
+         (request.resource.data.keys().hasAny(['creatorId']) && request.resource.data.creatorId == request.auth.uid)) ||
+        // Receiver
+        ((resource != null && resource.data.keys().hasAny(['receiverId']) && resource.data.receiverId == request.auth.uid) ||
+         (request.resource.data.keys().hasAny(['receiverId']) && request.resource.data.receiverId == request.auth.uid)) ||
+        // Admin
+        isAdmin()
       );
       
-      allow delete: if isSignedIn() && (isCaller() || isCreator());
+      // Delete: Caller, Creator, or Admin
+      allow delete: if isSignedIn() && (
+        (resource.data.keys().hasAny(['callerId']) && resource.data.callerId == request.auth.uid) ||
+        (resource.data.keys().hasAny(['creatorId']) && resource.data.creatorId == request.auth.uid) ||
+        isAdmin()
+      );
       
-      // Allow create if:
-      // 1. User is authenticated AND (is the caller OR is the creator making the call)
-      //    - User → Creator call: auth.uid == callerId
-      //    - Creator → User call: auth.uid == creatorId
-      // Note: Live streaming check removed to prevent permission issues
-      // App-level logic should handle preventing calls during live streams
+      // Create: basic check
       allow create: if isSignedIn() 
                    && request.resource.data.keys().hasAny(['callerId', 'creatorId'])
                    && (
@@ -417,22 +405,31 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      // Read individual notification: only if user is the recipient
-      allow read, get: if isSignedIn() && (
-        resource != null && resource.data.toUid == request.auth.uid
-      );
-      
-      // List queries: allow for signed-in users (query will filter by toUid)
-      // This allows queries like: notifications.where('toUid', isEqualTo: userId)
+      allow read, get: if isSignedIn() && (resource != null && resource.data.toUid == request.auth.uid);
       allow list: if isSignedIn();
-      
-      // Create: any signed-in user can create (Cloud Functions create notifications)
       allow create: if isSignedIn(); 
-      
-      // Update/Delete: only recipient can update/delete their own notifications
-      allow update, delete: if isSignedIn() && (
-        resource != null && resource.data.toUid == request.auth.uid
-      );
+      allow update, delete: if isSignedIn() && (resource != null && resource.data.toUid == request.auth.uid);
+    }
+
+    // ==========================================
+    // CONTENT & BANNERS
+    // ==========================================
+    match /banners/{bannerId} {
+      allow read, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ==========================================
+    // MONETIZATION & PACKAGES
+    // ==========================================
+    match /app_configuration/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /coin_packages/{packageId} {
+      allow read, list: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /{document=**} {

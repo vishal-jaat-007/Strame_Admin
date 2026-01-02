@@ -225,3 +225,4 @@ class RecentActivities extends StatelessWidget {
     }
   }
 }
+

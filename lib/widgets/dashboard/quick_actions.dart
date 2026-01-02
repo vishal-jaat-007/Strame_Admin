@@ -1,16 +1,83 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../providers/admin_auth_provider.dart';
 import '../../theme/admin_theme.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
+import '../../models/navigation_item.dart';
 import '../common/glass_card.dart';
 import '../common/animated_button.dart';
 
-import '../../screens/admin/add_admin_screen.dart';
+class QuickActions extends StatefulWidget {
+  final ValueChanged<NavigationItem> onNavItemChanged;
 
-import '../../screens/admin/pending_approvals_screen.dart';
-import '../../screens/admin/withdrawal_requests_screen.dart';
+  const QuickActions({super.key, required this.onNavItemChanged});
 
-class QuickActions extends StatelessWidget {
-  const QuickActions({super.key});
+  @override
+  State<QuickActions> createState() => _QuickActionsState();
+}
+
+class _QuickActionsState extends State<QuickActions> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  int _pendingApprovals = 0;
+  int _pendingWithdrawals = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupListeners();
+    });
+  }
+
+  void _setupListeners() {
+    final authProvider = Provider.of<AdminAuthProvider>(context, listen: false);
+    final currentUid = authProvider.currentAdmin?.uid;
+
+    debugPrint(
+      '🔐 [QuickActions] Setting up listeners. Current Admin UID: $currentUid',
+    );
+
+    // Listen for pending creator approvals
+    _firestore
+        .collection('creators')
+        .where('isApproved', isEqualTo: false)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              setState(() => _pendingApprovals = snapshot.docs.length);
+              debugPrint(
+                '📊 [QuickActions] Pending Approvals: $_pendingApprovals',
+              );
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ [QuickActions] Error fetching pending approvals: $e');
+          },
+        );
+
+    // Listen for pending withdrawals
+    _firestore
+        .collection('withdraw_requests')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              setState(() => _pendingWithdrawals = snapshot.docs.length);
+              debugPrint(
+                '📊 [QuickActions] Pending Withdrawals: $_pendingWithdrawals',
+              );
+            }
+          },
+          onError: (e) {
+            debugPrint(
+              '❌ [QuickActions] Error fetching pending withdrawals: $e',
+            );
+          },
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +87,6 @@ class QuickActions extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Text(
               'Quick Actions',
               style: TextStyle(
@@ -35,55 +101,26 @@ class QuickActions extends StatelessWidget {
 
             const SizedBox(height: AdminTheme.spacingLg),
 
-            // Action buttons
-            _buildActionButton(
-              context,
-              icon: Icons.person_add,
-              title: 'Add Admin',
-              subtitle: 'Create new admin account',
-              color: AdminTheme.primaryPurple,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddAdminScreen(),
-                  ),
-                );
-              },
-            ),
-
             _buildActionButton(
               context,
               icon: Icons.approval,
               title: 'Pending Approvals',
-              subtitle: '3 creator requests waiting',
+              subtitle: '$_pendingApprovals creator requests waiting',
               color: AdminTheme.warningOrange,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PendingApprovalsScreen(),
-                  ),
-                );
-              },
-              hasNotification: true,
+              onPressed:
+                  () => widget.onNavItemChanged(NavigationItem.creatorApproval),
+              hasNotification: _pendingApprovals > 0,
             ),
 
             _buildActionButton(
               context,
               icon: Icons.account_balance_wallet,
               title: 'Process Withdrawals',
-              subtitle: '5 withdrawal requests',
+              subtitle: '$_pendingWithdrawals withdrawal requests',
               color: AdminTheme.successGreen,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const WithdrawalRequestsScreen(),
-                  ),
-                );
-              },
-              hasNotification: true,
+              onPressed:
+                  () => widget.onNavItemChanged(NavigationItem.withdrawals),
+              hasNotification: _pendingWithdrawals > 0,
             ),
 
             _buildActionButton(
@@ -92,9 +129,8 @@ class QuickActions extends StatelessWidget {
               title: 'Send Notification',
               subtitle: 'Broadcast to all users',
               color: AdminTheme.electricBlue,
-              onPressed: () {
-                // TODO: Show notification dialog
-              },
+              onPressed:
+                  () => widget.onNavItemChanged(NavigationItem.notifications),
             ),
 
             _buildActionButton(
@@ -103,9 +139,7 @@ class QuickActions extends StatelessWidget {
               title: 'Generate Report',
               subtitle: 'Export analytics data',
               color: AdminTheme.neonMagenta,
-              onPressed: () {
-                // TODO: Generate report
-              },
+              onPressed: () => widget.onNavItemChanged(NavigationItem.reports),
             ),
 
             _buildActionButton(
@@ -114,100 +148,56 @@ class QuickActions extends StatelessWidget {
               title: 'System Settings',
               subtitle: 'Configure app settings',
               color: AdminTheme.textSecondary,
-              onPressed: () {
-                // TODO: Navigate to settings
-              },
+              onPressed: () => widget.onNavItemChanged(NavigationItem.settings),
             ),
 
             const SizedBox(height: AdminTheme.spacingLg),
 
-            // Emergency actions
-            Container(
-              padding: const EdgeInsets.all(AdminTheme.spacingMd),
-              decoration: BoxDecoration(
-                color: AdminTheme.errorRed.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
-                border: Border.all(color: AdminTheme.errorRed.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.warning_rounded,
-                        color: AdminTheme.errorRed,
-                        size: 20,
-                      ),
-                      const SizedBox(width: AdminTheme.spacingSm),
-                      Flexible(
-                        child: Text(
-                          app_utils.AppResponsiveUtils.isMobile(context)
-                              ? 'Emergency'
-                              : 'Emergency Actions',
-                          style: AdminTheme.bodyMedium.copyWith(
-                            color: AdminTheme.errorRed,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: AdminTheme.spacingMd),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: AnimatedButton(
-                      onPressed: () {
-                        _showEmergencyDialog(context, 'Maintenance Mode');
-                      },
-                      backgroundColor: AdminTheme.errorRed,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.build,
-                            size:
-                                app_utils.AppResponsiveUtils.isMobile(context)
-                                    ? 12
-                                    : 16,
-                          ),
-                          SizedBox(
-                            width:
-                                app_utils.AppResponsiveUtils.isMobile(context)
-                                    ? 2
-                                    : AdminTheme.spacingSm,
-                          ),
-                          Flexible(
-                            child: Text(
-                              app_utils.AppResponsiveUtils.isMobile(context)
-                                  ? 'Maintenance'
-                                  : 'Enable Maintenance',
-                              style: TextStyle(
-                                fontSize: app_utils
-                                    .AppResponsiveUtils.responsiveFontSize(
-                                  context,
-                                  mobile: 10,
-                                  tablet: 12.0,
-                                  desktop: 14.0,
-                                ),
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildEmergencyActions(context),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmergencyActions(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AdminTheme.spacingMd),
+      decoration: BoxDecoration(
+        color: AdminTheme.errorRed.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+        border: Border.all(color: AdminTheme.errorRed.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_rounded, color: AdminTheme.errorRed, size: 20),
+              const SizedBox(width: AdminTheme.spacingSm),
+              Text(
+                'Emergency Actions',
+                style: AdminTheme.bodyMedium.copyWith(
+                  color: AdminTheme.errorRed,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AdminTheme.spacingMd),
+          SizedBox(
+            width: double.infinity,
+            child: AnimatedButton(
+              onPressed:
+                  () => _showEmergencyDialog(context, 'Maintenance Mode'),
+              backgroundColor: AdminTheme.errorRed,
+              child: Text(
+                'Enable Maintenance',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -237,7 +227,6 @@ class QuickActions extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Icon
                 Stack(
                   children: [
                     Container(
@@ -251,44 +240,26 @@ class QuickActions extends StatelessWidget {
                       ),
                       child: Icon(icon, color: color, size: 24),
                     ),
-
                     if (hasNotification)
                       Positioned(
                         right: 0,
                         top: 0,
                         child: Container(
-                          width: 16,
-                          height: 16,
+                          width: 12,
+                          height: 12,
                           decoration: BoxDecoration(
                             color: AdminTheme.errorRed,
-                            borderRadius: BorderRadius.circular(8),
+                            shape: BoxShape.circle,
                             border: Border.all(
                               color: AdminTheme.backgroundPrimary,
                               width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '!',
-                              style: AdminTheme.labelSmall.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 8,
-                              ),
                             ),
                           ),
                         ),
                       ),
                   ],
                 ),
-
-                SizedBox(
-                  width:
-                      app_utils.AppResponsiveUtils.responsiveSpacing(context) *
-                      0.5,
-                ),
-
-                // Content
+                const SizedBox(width: AdminTheme.spacingLg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,47 +267,22 @@ class QuickActions extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: TextStyle(
-                          fontSize: app_utils
-                              .AppResponsiveUtils.responsiveFontSize(
-                            context,
-                            mobile: 14,
-                          ),
-                          fontWeight: FontWeight.w600,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
                           color: AdminTheme.textPrimary,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
                       ),
-                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontSize: app_utils
-                              .AppResponsiveUtils.responsiveFontSize(
-                            context,
-                            mobile: 12,
-                          ),
+                          fontSize: 12,
                           color: AdminTheme.textSecondary,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
                       ),
                     ],
                   ),
                 ),
-
-                // Arrow
-                Icon(
-                  Icons.chevron_right,
-                  color: AdminTheme.textSecondary,
-                  size: app_utils.AppResponsiveUtils.responsive(
-                    context,
-                    mobile: 16.0,
-                    tablet: 18.0,
-                    desktop: 20.0,
-                  ),
-                ),
+                Icon(Icons.chevron_right, color: AdminTheme.textSecondary),
               ],
             ),
           ),
@@ -351,47 +297,21 @@ class QuickActions extends StatelessWidget {
       builder:
           (context) => AlertDialog(
             backgroundColor: AdminTheme.cardDark,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AdminTheme.radiusMd),
+            title: Text(
+              'Confirm $action',
+              style: const TextStyle(color: AdminTheme.errorRed),
             ),
-            title: Row(
-              children: [
-                Icon(Icons.warning_rounded, color: AdminTheme.errorRed),
-                const SizedBox(width: AdminTheme.spacingSm),
-                Text(
-                  'Emergency Action',
-                  style: AdminTheme.headlineSmall.copyWith(
-                    color: AdminTheme.errorRed,
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              'Are you sure you want to enable $action? This will affect all users.',
-              style: AdminTheme.bodyMedium,
-            ),
+            content: Text('Are you sure? This will affect all live users.'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Cancel',
-                  style: AdminTheme.bodyMedium.copyWith(
-                    color: AdminTheme.textSecondary,
-                  ),
-                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
               ),
-              AnimatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // TODO: Implement emergency action
-                },
-                backgroundColor: AdminTheme.errorRed,
-                child: Text(
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
                   'Confirm',
-                  style: AdminTheme.bodyMedium.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(color: AdminTheme.errorRed),
                 ),
               ),
             ],

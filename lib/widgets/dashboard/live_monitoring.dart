@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../models/live_session.dart';
 import '../../theme/admin_theme.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
@@ -175,18 +176,23 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
 
   Widget _buildLiveStreamsSection() {
     return StreamBuilder<QuerySnapshot>(
-      stream:
-          _firestore
-              .collection('live_sessions')
-              .where('isActive', isEqualTo: true)
-              .limit(3)
-              .snapshots(),
+      stream: _firestore.collection('live_sessions').snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return _buildLoadingSection('Live Streams');
         }
 
-        final streams = snapshot.data!.docs;
+        final allDocs = snapshot.data!.docs;
+        final sessions =
+            allDocs
+                .map((doc) => LiveSession.fromFirestore(doc))
+                .where(
+                  (session) =>
+                      session.status == 'active' ||
+                      session.status == 'live' ||
+                      session.isActive,
+                )
+                .toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +221,7 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
                     borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
                   ),
                   child: Text(
-                    '${streams.length}',
+                    '${sessions.length}',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AdminTheme.errorRed,
@@ -228,12 +234,10 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
 
             const SizedBox(height: AdminTheme.spacingMd),
 
-            if (streams.isEmpty)
+            if (sessions.isEmpty)
               _buildEmptyState('No live streams')
             else
-              ...streams.map(
-                (doc) => _buildStreamItem(doc.data() as Map<String, dynamic>),
-              ),
+              ...sessions.take(3).map((session) => _buildStreamItem(session)),
           ],
         );
       },
@@ -352,10 +356,10 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
     );
   }
 
-  Widget _buildStreamItem(Map<String, dynamic> data) {
-    final creatorName = data['creatorName'] ?? 'Unknown';
-    final viewerCount = data['viewerCount'] ?? 0;
-    final duration = _calculateDuration(data['startTime']);
+  Widget _buildStreamItem(LiveSession session) {
+    final creatorName = session.creatorName ?? 'Unknown';
+    final viewerCount = session.viewerCount;
+    final duration = _calculateDuration(session.startedAt);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AdminTheme.spacingSm),
@@ -388,15 +392,41 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  creatorName,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AdminTheme.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        creatorName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AdminTheme.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (session.isActive)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AdminTheme.errorRed,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: const Text(
+                          'LIVE',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 Text(
                   '$viewerCount viewers • $duration',
@@ -526,26 +556,4 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

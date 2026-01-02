@@ -20,6 +20,8 @@ class AppUser {
   final int coins;
   final bool isBlocked;
   final String status; // active, blocked, suspended
+  final bool isOnline;
+  final DateTime? lastActiveAt;
 
   AppUser({
     required this.uid,
@@ -41,6 +43,8 @@ class AppUser {
     this.coins = 0,
     this.isBlocked = false,
     this.status = 'active',
+    this.isOnline = false,
+    this.lastActiveAt,
   });
 
   factory AppUser.fromFirestore(Map<String, dynamic> data) {
@@ -50,7 +54,7 @@ class AppUser {
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'],
       gender: data['gender'],
-      dob: data['dob'] != null ? DateTime.tryParse(data['dob']) : null,
+      dob: _parseDateTime(data['dob']),
       age: data['age'],
       location: data['location'],
       interests: List<String>.from(data['interests'] ?? []),
@@ -58,13 +62,22 @@ class AppUser {
       role: data['role'] ?? 'viewer',
       isVerified: data['isVerified'] ?? false,
       isHost: data['isHost'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
       profileCompleted: data['profileCompleted'] ?? false,
       referralCode: data['referralCode'],
       coins: data['coins'] ?? 0,
       isBlocked: data['isBlocked'] ?? false,
       status: data['status'] ?? 'active',
+      isOnline: data['isOnline'] ?? false,
+      lastActiveAt: _parseDateTime(data['lastActiveAt']),
     );
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   Map<String, dynamic> toFirestore() {
@@ -88,6 +101,9 @@ class AppUser {
       'coins': coins,
       'isBlocked': isBlocked,
       'status': status,
+      'isOnline': isOnline,
+      'lastActiveAt':
+          lastActiveAt != null ? Timestamp.fromDate(lastActiveAt!) : null,
     };
   }
 
@@ -111,6 +127,8 @@ class AppUser {
     int? coins,
     bool? isBlocked,
     String? status,
+    bool? isOnline,
+    DateTime? lastActiveAt,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -132,6 +150,8 @@ class AppUser {
       coins: coins ?? this.coins,
       isBlocked: isBlocked ?? this.isBlocked,
       status: status ?? this.status,
+      isOnline: isOnline ?? this.isOnline,
+      lastActiveAt: lastActiveAt ?? this.lastActiveAt,
     );
   }
 
@@ -139,27 +159,4 @@ class AppUser {
   bool get isViewer => role == 'viewer';
   bool get isActive => status == 'active' && !isBlocked;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

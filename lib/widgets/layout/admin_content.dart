@@ -12,21 +12,28 @@ import '../../screens/modules/withdrawals/withdrawals_module.dart';
 import '../../screens/modules/transactions/transactions_module.dart';
 import '../../screens/modules/notifications/notifications_module.dart';
 import '../../screens/modules/content/content_module.dart';
+import '../../screens/modules/monetization/monetization_module.dart';
+import '../../screens/modules/reports/reports_module.dart';
+import '../../screens/modules/settings/settings_module.dart';
 
 class AdminContent extends StatelessWidget {
   final NavigationItem selectedItem;
+  final ValueChanged<NavigationItem> onNavItemChanged;
 
   const AdminContent({
     super.key,
     required this.selectedItem,
+    required this.onNavItemChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveBreakpoints.of(context).isMobile;
-    
+
     return Container(
-      padding: EdgeInsets.all(isMobile ? AdminTheme.spacingMd : AdminTheme.spacingLg),
+      padding: EdgeInsets.all(
+        isMobile ? AdminTheme.spacingMd : AdminTheme.spacingLg,
+      ),
       child: _buildContent(),
     );
   }
@@ -34,7 +41,7 @@ class AdminContent extends StatelessWidget {
   Widget _buildContent() {
     switch (selectedItem) {
       case NavigationItem.dashboard:
-        return const DashboardModule();
+        return DashboardModule(onNavItemChanged: onNavItemChanged);
       case NavigationItem.users:
         return const UsersModule();
       case NavigationItem.creators:
@@ -53,100 +60,12 @@ class AdminContent extends StatelessWidget {
         return const NotificationsModule();
       case NavigationItem.content:
         return const ContentModule();
+      case NavigationItem.monetization:
+        return const MonetizationModule();
+      case NavigationItem.reports:
+        return const ReportsModule();
       case NavigationItem.settings:
-        return _buildPlaceholder('Settings', 'App configuration and preferences');
+        return const SettingsModule();
     }
   }
-
-  Widget _buildPlaceholder(String title, String description) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AdminTheme.cardDark,
-              borderRadius: BorderRadius.circular(AdminTheme.radiusXl),
-              border: Border.all(
-                color: AdminTheme.borderColor.withOpacity(0.3),
-              ),
-            ),
-            child: Icon(
-              selectedItem.icon,
-              size: 60,
-              color: selectedItem.color,
-            ),
-          ),
-          
-          const SizedBox(height: AdminTheme.spacingXl),
-          
-          Text(
-            title,
-            style: AdminTheme.headlineLarge.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          const SizedBox(height: AdminTheme.spacingSm),
-          
-          Text(
-            description,
-            style: AdminTheme.bodyLarge.copyWith(
-              color: AdminTheme.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          
-          const SizedBox(height: AdminTheme.spacingXl),
-          
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AdminTheme.spacingLg,
-              vertical: AdminTheme.spacingMd,
-            ),
-            decoration: BoxDecoration(
-              color: selectedItem.color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AdminTheme.radiusMd),
-              border: Border.all(
-                color: selectedItem.color.withOpacity(0.3),
-              ),
-            ),
-            child: Text(
-              'Coming Soon',
-              style: AdminTheme.bodyMedium.copyWith(
-                color: selectedItem.color,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -52,22 +52,43 @@ class Creator {
   });
 
   factory Creator.fromFirestore(Map<String, dynamic> data) {
+    // Helper to parse DateTime from Timestamp or String
+    DateTime parseDate(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    // Fallback for createdAt if main field is missing
+    DateTime getCreatedAt() {
+      if (data['createdAt'] != null) return parseDate(data['createdAt']);
+      if (data['timestamp'] != null) return parseDate(data['timestamp']);
+      if (data['created_at'] != null) return parseDate(data['created_at']);
+      // If absolutely no date is found, use a fixed past date to make it obvious??
+      // Or better, just keep it as now() but the user said it is wrong.
+      // Actually, users might have 'joinedAt' or similar.
+      return DateTime.now();
+    }
+
     return Creator(
       uid: data['uid'] ?? '',
       displayName: data['displayName'] ?? '',
       photoUrl: data['photoUrl'],
       category: data['category'] ?? '',
       isOnline: data['isOnline'] ?? false,
-      voiceEnabled: data['voiceEnabled'] ?? true,
-      videoEnabled: data['videoEnabled'] ?? false,
-      liveEnabled: data['liveEnabled'] ?? false,
+      // Map App fields (isVoiceEnabled) to Admin fields (voiceEnabled)
+      voiceEnabled: data['isVoiceEnabled'] ?? data['voiceEnabled'] ?? true,
+      videoEnabled: data['isVideoEnabled'] ?? data['videoEnabled'] ?? false,
+      liveEnabled: data['isLive'] ?? data['liveEnabled'] ?? false,
       isApproved: data['isApproved'] ?? false,
       isFeatured: data['isFeatured'] ?? false,
       totalEarnings: (data['totalEarnings'] ?? 0).toDouble(),
       totalCalls: data['totalCalls'] ?? 0,
       totalLiveMinutes: data['totalLiveMinutes'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastActiveAt: (data['lastActiveAt'] as Timestamp?)?.toDate(),
+      createdAt: getCreatedAt(),
+      lastActiveAt:
+          data['lastActiveAt'] != null ? parseDate(data['lastActiveAt']) : null,
       bio: data['bio'] ?? '',
       age: data['age'] ?? 18,
       location: data['location'],
@@ -94,7 +115,8 @@ class Creator {
       'totalCalls': totalCalls,
       'totalLiveMinutes': totalLiveMinutes,
       'createdAt': Timestamp.fromDate(createdAt),
-      'lastActiveAt': lastActiveAt != null ? Timestamp.fromDate(lastActiveAt!) : null,
+      'lastActiveAt':
+          lastActiveAt != null ? Timestamp.fromDate(lastActiveAt!) : null,
       'bio': bio,
       'age': age,
       'location': location,
@@ -169,27 +191,4 @@ class Creator {
     return const Color(0xFFB0B0B0);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

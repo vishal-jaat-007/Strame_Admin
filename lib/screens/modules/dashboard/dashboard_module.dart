@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import '../../../theme/admin_theme.dart';
+import '../../../models/navigation_item.dart';
 import '../../../widgets/dashboard/stats_cards.dart';
 import '../../../widgets/dashboard/analytics_charts.dart';
 import '../../../widgets/dashboard/recent_activities.dart';
 import '../../../widgets/dashboard/quick_actions.dart';
 
 class DashboardModule extends StatefulWidget {
-  const DashboardModule({super.key});
+  final ValueChanged<NavigationItem> onNavItemChanged;
+  const DashboardModule({super.key, required this.onNavItemChanged});
 
   @override
   State<DashboardModule> createState() => _DashboardModuleState();
@@ -74,7 +76,7 @@ class _DashboardModuleState extends State<DashboardModule>
               // Mobile/Small tablet layout - stacked
               const RecentActivities(),
               const SizedBox(height: AdminTheme.spacingXl),
-              const QuickActions(),
+              QuickActions(onNavItemChanged: widget.onNavItemChanged),
             ] else ...[
               // Desktop/Tablet layout - side by side
               Row(
@@ -86,7 +88,12 @@ class _DashboardModuleState extends State<DashboardModule>
                   const SizedBox(width: AdminTheme.spacingLg),
 
                   // Quick actions
-                  Expanded(flex: 1, child: const QuickActions()),
+                  Expanded(
+                    flex: 1,
+                    child: QuickActions(
+                      onNavItemChanged: widget.onNavItemChanged,
+                    ),
+                  ),
                 ],
               ),
             ],

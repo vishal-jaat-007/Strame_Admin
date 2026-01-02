@@ -271,4 +271,27 @@ class AdminAuthService {
       throw e.toString();
     }
   }
+
+  // Get all admins stream
+  Stream<List<AdminUser>> getAdminsStream() {
+    return _firestore
+        .collection('admins')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs
+                  .map((doc) => AdminUser.fromFirestore(doc.data()))
+                  .toList(),
+        );
+  }
+
+  // Delete an admin
+  Future<void> deleteAdmin(String uid) async {
+    try {
+      await _firestore.collection('admins').doc(uid).delete();
+    } catch (e) {
+      throw 'Failed to delete admin: ${e.toString()}';
+    }
+  }
 }

@@ -11,6 +11,8 @@ enum NavigationItem {
   transactions,
   notifications,
   content,
+  monetization,
+  reports,
   settings,
 }
 
@@ -37,6 +39,10 @@ extension NavigationItemExtension on NavigationItem {
         return 'Notifications';
       case NavigationItem.content:
         return 'Content & Banners';
+      case NavigationItem.monetization:
+        return 'Coins & Earnings';
+      case NavigationItem.reports:
+        return 'Analytics Reports';
       case NavigationItem.settings:
         return 'Settings';
     }
@@ -64,6 +70,10 @@ extension NavigationItemExtension on NavigationItem {
         return Icons.notifications_rounded;
       case NavigationItem.content:
         return Icons.image_rounded;
+      case NavigationItem.monetization:
+        return Icons.monetization_on_rounded;
+      case NavigationItem.reports:
+        return Icons.bar_chart_rounded;
       case NavigationItem.settings:
         return Icons.settings_rounded;
     }
@@ -91,6 +101,10 @@ extension NavigationItemExtension on NavigationItem {
         return '/notifications';
       case NavigationItem.content:
         return '/content';
+      case NavigationItem.monetization:
+        return '/monetization';
+      case NavigationItem.reports:
+        return '/reports';
       case NavigationItem.settings:
         return '/settings';
     }
@@ -118,6 +132,10 @@ extension NavigationItemExtension on NavigationItem {
         return const Color(0xFFFF9500);
       case NavigationItem.content:
         return const Color(0xFFFF00E5);
+      case NavigationItem.monetization:
+        return const Color(0xFFFFD700);
+      case NavigationItem.reports:
+        return const Color(0xFF00D4FF);
       case NavigationItem.settings:
         return const Color(0xFFB0B0B0);
     }
@@ -156,32 +174,12 @@ extension NavigationItemExtension on NavigationItem {
         return 'Send notifications';
       case NavigationItem.content:
         return 'Manage banners & content';
+      case NavigationItem.monetization:
+        return 'Manage call rates and coin pricing';
+      case NavigationItem.reports:
+        return 'Export and view analytics reports';
       case NavigationItem.settings:
         return 'App settings';
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

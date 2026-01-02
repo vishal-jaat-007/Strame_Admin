@@ -9,3 +9,4 @@ class TransactionsModule extends StatelessWidget {
     return const TransactionsScreen(isEmbedded: true);
   }
 }
+

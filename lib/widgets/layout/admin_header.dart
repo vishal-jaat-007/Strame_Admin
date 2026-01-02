@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:responsive_framework/responsive_framework.dart';
 import '../../theme/admin_theme.dart';
 import '../../models/navigation_item.dart';
 import '../../providers/admin_auth_provider.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
 import '../common/glass_card.dart';
+import '../dialogs/global_search_dialog.dart';
 
 class AdminHeader extends StatelessWidget {
   final NavigationItem selectedItem;
   final VoidCallback onMenuPressed;
+  final ValueChanged<NavigationItem> onNavItemChanged;
   final bool isSidebarCollapsed;
 
   const AdminHeader({
     super.key,
     required this.selectedItem,
     required this.onMenuPressed,
+    required this.onNavItemChanged,
     required this.isSidebarCollapsed,
   });
 
@@ -200,7 +202,13 @@ class AdminHeader extends StatelessWidget {
                 icon: Icons.search_rounded,
                 tooltip: 'Search',
                 onPressed: () {
-                  // TODO: Implement search
+                  showDialog(
+                    context: context,
+                    builder:
+                        (context) => GlobalSearchDialog(
+                          onNavItemChanged: onNavItemChanged,
+                        ),
+                  );
                 },
               ),
 
@@ -216,10 +224,8 @@ class AdminHeader extends StatelessWidget {
               context,
               icon: Icons.notifications_rounded,
               tooltip: 'Notifications',
-              hasNotification: true,
-              onPressed: () {
-                // TODO: Show notifications
-              },
+              hasNotification: NavigationItem.notifications.hasNotification,
+              onPressed: () => onNavItemChanged(NavigationItem.notifications),
             ),
 
             if (!isMobile && screenWidth > 1000) ...[
@@ -234,9 +240,7 @@ class AdminHeader extends StatelessWidget {
                 context,
                 icon: Icons.settings_rounded,
                 tooltip: 'Settings',
-                onPressed: () {
-                  // TODO: Show settings
-                },
+                onPressed: () => onNavItemChanged(NavigationItem.settings),
               ),
             ],
 
@@ -420,44 +424,24 @@ class AdminHeader extends StatelessWidget {
         itemBuilder:
             (context) => [
               PopupMenuItem<String>(
-                value: 'profile',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_outlined,
-                      color: AdminTheme.textSecondary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: AdminTheme.spacingSm),
-                    Text('Profile', style: AdminTheme.bodyMedium),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.settings_outlined,
-                      color: AdminTheme.textSecondary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: AdminTheme.spacingSm),
-                    Text('Settings', style: AdminTheme.bodyMedium),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem<String>(
                 value: 'logout',
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Row(
                   children: [
-                    Icon(Icons.logout, color: AdminTheme.errorRed, size: 18),
-                    const SizedBox(width: AdminTheme.spacingSm),
+                    Icon(
+                      Icons.logout_rounded,
+                      color: AdminTheme.errorRed.withOpacity(0.8),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
                     Text(
                       'Sign Out',
                       style: AdminTheme.bodyMedium.copyWith(
                         color: AdminTheme.errorRed,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -465,16 +449,9 @@ class AdminHeader extends StatelessWidget {
               ),
             ],
         onSelected: (value) {
-          switch (value) {
-            case 'profile':
-              // TODO: Show profile dialog
-              break;
-            case 'settings':
-              // TODO: Navigate to settings
-              break;
-            case 'logout':
-              authProvider.signOut();
-              break;
+          debugPrint('🔘 [AdminHeader] Menu item selected: $value');
+          if (value == 'logout') {
+            authProvider.signOut();
           }
         },
       ),

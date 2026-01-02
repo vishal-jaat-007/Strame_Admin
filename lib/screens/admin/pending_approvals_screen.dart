@@ -241,7 +241,12 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AdminTheme.errorRed,
                       side: const BorderSide(color: AdminTheme.errorRed),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      minimumSize: const Size(double.infinity, 45),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AdminTheme.radiusSm,
+                        ),
+                      ),
                     ),
                     child: const Text('Reject'),
                   ),
@@ -251,6 +256,7 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                   child: AnimatedButton(
                     onPressed: () => _handleApprove(context, creator),
                     backgroundColor: AdminTheme.successGreen,
+                    minimumSize: const Size(double.infinity, 45),
                     child: const Text(
                       'Approve',
                       style: TextStyle(

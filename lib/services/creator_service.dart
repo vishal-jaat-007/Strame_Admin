@@ -9,13 +9,21 @@ class CreatorService {
     return _firestore
         .collection('creators')
         .where('isApproved', isEqualTo: false)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
               .map((doc) => Creator.fromFirestore(doc.data()))
               .toList();
         });
+  }
+
+  // Fetch all creators
+  Stream<List<Creator>> getAllCreators() {
+    return _firestore.collection('creators').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Creator.fromFirestore(doc.data()))
+          .toList();
+    });
   }
 
   // Approve creator
@@ -46,5 +54,19 @@ class CreatorService {
     } catch (e) {
       throw 'Failed to reject creator: $e';
     }
+  }
+
+  Future<void> blockCreator(String uid) async {
+    await _firestore.collection('creators').doc(uid).update({
+      'isBlocked': true,
+      'status': 'blocked',
+    });
+  }
+
+  Future<void> unblockCreator(String uid) async {
+    await _firestore.collection('creators').doc(uid).update({
+      'isBlocked': false,
+      'status': 'active',
+    });
   }
 }

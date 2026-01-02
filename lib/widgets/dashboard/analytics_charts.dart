@@ -329,11 +329,12 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
             ? 100.0
             : earningsData.map((e) => e.y).reduce((a, b) => a > b ? a : b) *
                 1.2;
+    final interval = _calculateInterval(maxY);
 
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(maxY),
-        titlesData: _buildTitlesData(maxY),
+        gridData: _buildGridData(interval),
+        titlesData: _buildTitlesData(interval),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -383,11 +384,12 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
         usersData.isEmpty
             ? 100.0
             : usersData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2;
+    final interval = _calculateInterval(maxY);
 
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(maxY),
-        titlesData: _buildTitlesData(maxY),
+        gridData: _buildGridData(interval),
+        titlesData: _buildTitlesData(interval),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -439,11 +441,12 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
         callsData.isEmpty
             ? 100.0
             : callsData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2;
+    final interval = _calculateInterval(maxY);
 
     return LineChart(
       LineChartData(
-        gridData: _buildGridData(maxY),
-        titlesData: _buildTitlesData(maxY),
+        gridData: _buildGridData(interval),
+        titlesData: _buildTitlesData(interval),
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: 6,
@@ -490,23 +493,24 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 
-  FlGridData _buildGridData(double maxY) {
-    // Calculate interval based on max value
-    double interval = 1;
-    if (maxY > 1000) {
-      interval = 200;
-    } else if (maxY > 500) {
-      interval = 100;
-    } else if (maxY > 100) {
-      interval = 20;
-    } else if (maxY > 50) {
-      interval = 10;
-    } else if (maxY > 20) {
-      interval = 5;
-    } else if (maxY > 10) {
-      interval = 2;
-    }
+  double _calculateInterval(double maxY) {
+    if (maxY <= 0) return 1;
+    if (maxY <= 10) return 2;
+    if (maxY <= 20) return 5;
+    if (maxY <= 50) return 10;
+    if (maxY <= 100) return 20;
+    if (maxY <= 500) return 100;
+    if (maxY <= 1000) return 200;
+    if (maxY <= 2500) return 500;
+    if (maxY <= 5000) return 1000;
+    if (maxY <= 10000) return 2000;
+    if (maxY <= 25000) return 5000;
+    if (maxY <= 50000) return 10000;
+    // For very large numbers, ensure we don't have more than 6-7 intervals
+    return (maxY / 5).ceilToDouble();
+  }
 
+  FlGridData _buildGridData(double interval) {
     return FlGridData(
       show: true,
       drawVerticalLine: false,
@@ -520,23 +524,7 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 
-  FlTitlesData _buildTitlesData(double maxY) {
-    // Calculate interval based on max value to avoid overcrowding
-    double interval = 1;
-    if (maxY > 1000) {
-      interval = 200;
-    } else if (maxY > 500) {
-      interval = 100;
-    } else if (maxY > 100) {
-      interval = 20;
-    } else if (maxY > 50) {
-      interval = 10;
-    } else if (maxY > 20) {
-      interval = 5;
-    } else if (maxY > 10) {
-      interval = 2;
-    }
-
+  FlTitlesData _buildTitlesData(double interval) {
     return FlTitlesData(
       show: true,
       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -548,11 +536,8 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
           interval: 1,
           getTitlesWidget: (double value, TitleMeta meta) {
             final now = DateTime.now();
-            // Calculate day name based on index (0 = 6 days ago, 6 = today)
-            // The chart data is generated from index 0 to 6
             final dayIndex = value.toInt();
             if (dayIndex >= 0 && dayIndex < 7) {
-              // 0 is 6 days ago, 6 is today
               final date = now.subtract(Duration(days: 6 - dayIndex));
               final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
               final dayName = days[date.weekday - 1];
@@ -579,9 +564,9 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
         sideTitles: SideTitles(
           showTitles: true,
           interval: interval,
-          reservedSize: 40,
+          reservedSize: 45,
           getTitlesWidget: (double value, TitleMeta meta) {
-            if (value == 0) return const SizedBox.shrink();
+            if (value < 0) return const SizedBox.shrink();
 
             String text;
             if (value >= 1000) {
