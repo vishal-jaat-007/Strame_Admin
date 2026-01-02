@@ -115,6 +115,7 @@ class _MonetizationModuleState extends State<MonetizationModule>
         TabBar(
           controller: _tabController,
           isScrollable: true,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           labelColor: AdminTheme.primaryPurple,
           unselectedLabelColor: AdminTheme.textSecondary,
           indicatorColor: AdminTheme.primaryPurple,

@@ -147,6 +147,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     int blocked,
     int newToday,
   ) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     final cards = [
@@ -178,30 +179,47 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     if (isMobile) {
       return SizedBox(
-        height: 120,
+        height: 150, // Increased height to prevent vertical overflow
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           itemCount: cards.length,
           separatorBuilder:
               (context, index) => const SizedBox(width: AdminTheme.spacingMd),
           itemBuilder:
-              (context, index) => SizedBox(width: 160, child: cards[index]),
+              (context, index) => SizedBox(width: 170, child: cards[index]),
         ),
       );
     }
 
-    return Row(
-      children:
-          cards
-              .map(
-                (card) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: card,
+    // Desktop/Tablet: Use Grid for smaller desktop widths, Row for larger
+    if (screenWidth < 1100) {
+      return GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        childAspectRatio: 1.9, // Reduced from 2.2 to make cards taller
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        children: cards,
+      );
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children:
+            cards
+                .map(
+                  (card) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: card,
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+      ),
     );
   }
 
@@ -216,6 +234,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,19 +251,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AdminTheme.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  color: AdminTheme.textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
+                ),
+              ),
             ),
           ),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AdminTheme.textSecondary,
-              fontSize: 12,
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: AdminTheme.textSecondary,
+                fontSize: 12,
+              ),
+              maxLines: 1,
             ),
           ),
         ],
@@ -336,6 +368,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _buildUserList(BuildContext context, List<AppUser> users) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     if (isMobile) {
@@ -362,8 +395,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
             dataRowColor: MaterialStateProperty.all(Colors.transparent),
             dividerThickness: 0.5,
-            horizontalMargin: AdminTheme.spacingLg,
-            columnSpacing: AdminTheme.spacingXl,
+            horizontalMargin: screenWidth < 1000 ? 8 : AdminTheme.spacingLg,
+            columnSpacing: screenWidth < 1000 ? 12 : AdminTheme.spacingLg,
             columns: const [
               DataColumn(
                 label: Text(
@@ -605,23 +638,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       style: const TextStyle(
                         color: AdminTheme.textPrimary,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 14, // Slightly smaller for narrow screens
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       user.email,
                       style: const TextStyle(
                         color: AdminTheme.textSecondary,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              StreamBuilder<void>(
-                stream:
-                    null, // Just to allow using logic block, or better just use immediate execution
-                builder: (context, _) {
+              const SizedBox(width: 4),
+              Builder(
+                builder: (context) {
                   Color color;
                   String text;
                   if (user.isBlocked) {
@@ -637,8 +673,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 6,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: color.withOpacity(0.1),
@@ -648,7 +684,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       text,
                       style: TextStyle(
                         color: color,
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -658,21 +694,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ],
           ),
           const SizedBox(height: AdminTheme.spacingMd),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Text(
                 'Joined: ${DateFormat('MMM d, y').format(user.createdAt)}',
                 style: const TextStyle(
                   color: AdminTheme.textTertiary,
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
               ),
               Text(
                 'Role: ${user.role.toUpperCase()}',
                 style: const TextStyle(
                   color: AdminTheme.textTertiary,
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
               ),
             ],

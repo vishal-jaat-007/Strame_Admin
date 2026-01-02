@@ -258,7 +258,7 @@ class _ReportsModuleState extends State<ReportsModule> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
-            childAspectRatio: isMobile ? 2.0 : 1.5,
+            childAspectRatio: isMobile ? 2.2 : (isTablet ? 1.4 : 1.3),
             crossAxisSpacing: AdminTheme.spacingLg,
             mainAxisSpacing: AdminTheme.spacingLg,
             children: [
@@ -367,19 +367,25 @@ class _ReportsModuleState extends State<ReportsModule> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 28),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: AdminTheme.headlineMedium.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: AdminTheme.headlineMedium.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            title,
-            style: AdminTheme.bodySmall.copyWith(
-              color: AdminTheme.textSecondary,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: AdminTheme.bodySmall.copyWith(
+                color: AdminTheme.textSecondary,
+              ),
             ),
           ),
         ],

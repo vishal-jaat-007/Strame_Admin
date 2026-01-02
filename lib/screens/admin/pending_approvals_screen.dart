@@ -70,16 +70,19 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
           );
         }
 
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
+
         return GridView.builder(
           padding: const EdgeInsets.all(AdminTheme.spacingLg),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount:
-                app_utils.AppResponsiveUtils.isMobile(context)
-                    ? 1
-                    : app_utils.AppResponsiveUtils.isTablet(context)
-                    ? 2
-                    : 3,
-            childAspectRatio: 0.8, // Taller cards for details
+            crossAxisCount: isMobile ? 1 : (screenWidth < 1100 ? 2 : 3),
+            childAspectRatio:
+                isMobile
+                    ? 1.2
+                    : (screenWidth < 900
+                        ? 0.7 // Taller for narrow tablet
+                        : (screenWidth < 1200 ? 0.85 : 0.95)),
             crossAxisSpacing: AdminTheme.spacingMd,
             mainAxisSpacing: AdminTheme.spacingMd,
           ),
@@ -241,27 +244,35 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AdminTheme.errorRed,
                       side: const BorderSide(color: AdminTheme.errorRed),
-                      minimumSize: const Size(double.infinity, 45),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      minimumSize: const Size(0, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
                           AdminTheme.radiusSm,
                         ),
                       ),
                     ),
-                    child: const Text('Reject'),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Reject'),
+                    ),
                   ),
                 ),
-                const SizedBox(width: AdminTheme.spacingMd),
+                const SizedBox(width: AdminTheme.spacingSm),
                 Expanded(
                   child: AnimatedButton(
                     onPressed: () => _handleApprove(context, creator),
                     backgroundColor: AdminTheme.successGreen,
-                    minimumSize: const Size(double.infinity, 45),
-                    child: const Text(
-                      'Approve',
-                      style: TextStyle(
-                        color: AdminTheme.backgroundPrimary,
-                        fontWeight: FontWeight.bold,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    minimumSize: const Size(0, 40),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Approve',
+                        style: TextStyle(
+                          color: AdminTheme.backgroundPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

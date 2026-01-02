@@ -185,30 +185,49 @@ class _CreatorsModuleState extends State<CreatorsModule> {
 
     if (isMobile) {
       return SizedBox(
-        height: 120,
+        height: 150, // Increased height to prevent vertical overflow
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           itemCount: cards.length,
           separatorBuilder:
               (context, index) => const SizedBox(width: AdminTheme.spacingMd),
           itemBuilder:
-              (context, index) => SizedBox(width: 160, child: cards[index]),
+              (context, index) => SizedBox(width: 170, child: cards[index]),
         ),
       );
     }
 
-    return Row(
-      children:
-          cards
-              .map(
-                (card) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: card,
+    // Tablet: Use 2 columns if width is medium
+    final screenWidth = MediaQuery.of(context).size.width;
+    if (screenWidth < 1100) {
+      return GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        childAspectRatio: 1.9, // Reduced from 2.2 to make cards taller
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        children: cards,
+      );
+    }
+
+    // Desktop: Row with IntrinsicHeight to ensure all cards are same height
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children:
+            cards
+                .map(
+                  (card) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: card,
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+      ),
     );
   }
 
@@ -226,6 +245,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -242,19 +262,32 @@ class _CreatorsModuleState extends State<CreatorsModule> {
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                color: AdminTheme.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: AdminTheme.textPrimary,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    height: 1.1,
+                  ),
+                ),
               ),
             ),
-            Text(
-              title,
-              style: const TextStyle(
-                color: AdminTheme.textSecondary,
-                fontSize: 12,
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AdminTheme.textSecondary,
+                  fontSize: 12,
+                ),
+                maxLines: 1,
               ),
             ),
           ],
@@ -357,6 +390,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
   }
 
   Widget _buildCreatorList(BuildContext context, List<Creator> creators) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     if (isMobile) {
@@ -383,8 +417,8 @@ class _CreatorsModuleState extends State<CreatorsModule> {
             ),
             dataRowColor: MaterialStateProperty.all(Colors.transparent),
             dividerThickness: 0.5,
-            horizontalMargin: AdminTheme.spacingLg,
-            columnSpacing: AdminTheme.spacingXl,
+            horizontalMargin: isMobile ? 8 : AdminTheme.spacingLg,
+            columnSpacing: screenWidth < 1000 ? 12 : AdminTheme.spacingLg,
             columns: const [
               DataColumn(label: Text('Creator', style: _headerStyle)),
               DataColumn(label: Text('Category', style: _headerStyle)),
@@ -438,37 +472,40 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                 ],
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    creator.displayName,
-                    style: const TextStyle(
-                      color: AdminTheme.textPrimary,
-                      fontWeight: FontWeight.w500,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      creator.displayName,
+                      style: const TextStyle(
+                        color: AdminTheme.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (creator.isFeatured)
-                    Container(
-                      margin: const EdgeInsets.only(top: 2),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AdminTheme.accentBlue.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                      child: const Text(
-                        'FEATURED',
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: AdminTheme.accentBlue,
+                    if (creator.isFeatured)
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AdminTheme.accentBlue.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: const Text(
+                          'FEATURED',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: AdminTheme.accentBlue,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -605,25 +642,32 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                       style: const TextStyle(
                         color: AdminTheme.textPrimary,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 14,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       creator.category,
                       style: const TextStyle(
                         color: AdminTheme.textSecondary,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
               _buildStatusBadge(creator),
             ],
           ),
           const SizedBox(height: AdminTheme.spacingMd),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,6 +684,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                     style: const TextStyle(
                       color: AdminTheme.successGreen,
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -658,7 +703,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                     DateFormat('MMM d, y').format(creator.createdAt),
                     style: const TextStyle(
                       color: AdminTheme.textPrimary,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -667,9 +712,10 @@ class _CreatorsModuleState extends State<CreatorsModule> {
           ),
           if (!creator.isApproved || !creator.isBlocked)
             Padding(
-              padding: const EdgeInsets.only(top: AdminTheme.spacingMd),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              padding: const EdgeInsets.only(top: AdminTheme.spacingSm),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 4,
                 children: [
                   if (!creator.isApproved)
                     TextButton.icon(
@@ -677,11 +723,14 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                       icon: const Icon(
                         Icons.check,
                         color: AdminTheme.successGreen,
-                        size: 16,
+                        size: 14,
                       ),
                       label: const Text(
                         'Approve',
-                        style: TextStyle(color: AdminTheme.successGreen),
+                        style: TextStyle(
+                          color: AdminTheme.successGreen,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   TextButton.icon(
@@ -692,7 +741,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                           creator.isBlocked
                               ? AdminTheme.successGreen
                               : AdminTheme.errorRed,
-                      size: 16,
+                      size: 14,
                     ),
                     label: Text(
                       creator.isBlocked ? 'Unblock' : 'Block',
@@ -701,6 +750,7 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                             creator.isBlocked
                                 ? AdminTheme.successGreen
                                 : AdminTheme.errorRed,
+                        fontSize: 11,
                       ),
                     ),
                   ),
@@ -814,4 +864,3 @@ class _CreatorsModuleState extends State<CreatorsModule> {
     }
   }
 }
-

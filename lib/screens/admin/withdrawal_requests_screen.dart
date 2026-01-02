@@ -63,7 +63,10 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
                 color: AdminTheme.primaryPurple.withOpacity(0.5),
               ),
             ),
-            labelPadding: const EdgeInsets.symmetric(vertical: 14),
+            labelPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 12,
+            ),
             labelColor: AdminTheme.primaryPurple,
             unselectedLabelColor: AdminTheme.textSecondary,
             tabs: const [
@@ -145,7 +148,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
             ),
           );
         }
-
+        final screenWidth = MediaQuery.of(context).size.width;
         final requests = snapshot.data!;
 
         final displayRequests =
@@ -192,7 +195,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount:
                   app_utils.AppResponsiveUtils.isTablet(context) ? 1 : 2,
-              childAspectRatio: 1.6,
+              childAspectRatio: screenWidth < 1300 ? 1.35 : 1.6,
               crossAxisSpacing: AdminTheme.spacingMd,
               mainAxisSpacing: AdminTheme.spacingMd,
             ),

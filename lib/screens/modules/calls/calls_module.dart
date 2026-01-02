@@ -129,30 +129,47 @@ class _CallsModuleState extends State<CallsModule> {
 
     if (isMobile) {
       return SizedBox(
-        height: 110,
+        height: 120,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           itemCount: cards.length,
           separatorBuilder:
               (context, index) => const SizedBox(width: AdminTheme.spacingMd),
           itemBuilder:
-              (context, index) => SizedBox(width: 160, child: cards[index]),
+              (context, index) => SizedBox(width: 170, child: cards[index]),
         ),
       );
     }
 
-    return Row(
-      children:
-          cards
-              .map(
-                (c) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: c,
+    final screenWidth = MediaQuery.of(context).size.width;
+    if (screenWidth < 1100) {
+      return GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: screenWidth < 800 ? 1 : 2,
+        childAspectRatio: 2.2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        children: cards,
+      );
+    }
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children:
+            cards
+                .map(
+                  (c) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: c,
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+      ),
     );
   }
 
@@ -175,26 +192,35 @@ class _CallsModuleState extends State<CallsModule> {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(width: AdminTheme.spacingMd),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: AdminTheme.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: AdminTheme.textPrimary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
                 ),
-              ),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AdminTheme.textSecondary,
-                  fontSize: 12,
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AdminTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -242,6 +268,7 @@ class _CallsModuleState extends State<CallsModule> {
   }
 
   Widget _buildCallsGrid(BuildContext context, List<CallSession> calls) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -252,7 +279,7 @@ class _CallsModuleState extends State<CallsModule> {
                 : app_utils.AppResponsiveUtils.isTablet(context)
                 ? 2
                 : 3,
-        childAspectRatio: 1.4, // Card aspect ratio
+        childAspectRatio: screenWidth < 1200 ? 1.25 : 1.4,
         crossAxisSpacing: AdminTheme.spacingMd,
         mainAxisSpacing: AdminTheme.spacingMd,
       ),
@@ -551,4 +578,3 @@ class _DurationTimerState extends State<_DurationTimer> {
     );
   }
 }
-
