@@ -347,7 +347,7 @@ class _StatsCardsState extends State<StatsCards> {
         padding: app_utils.AppResponsiveUtils.responsivePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
           children: [
             // Header with icon and trend
             Row(
@@ -369,54 +369,47 @@ class _StatsCardsState extends State<StatsCards> {
 
                 const Spacer(),
 
-                // Only show trend if there's enough space (wider screens with 3+ columns)
+                // Only show trend if there's enough space
                 if (!isMobile && screenWidth > 1100)
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (stat.isPositive
-                                ? AdminTheme.successGreen
-                                : AdminTheme.errorRed)
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(
-                          AdminTheme.radiusSm,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (stat.isPositive
+                              ? AdminTheme.successGreen
+                              : AdminTheme.errorRed)
+                          .withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          stat.isPositive
+                              ? Icons.trending_up
+                              : Icons.trending_down,
+                          size: 9,
+                          color:
+                              stat.isPositive
+                                  ? AdminTheme.successGreen
+                                  : AdminTheme.errorRed,
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            stat.isPositive
-                                ? Icons.trending_up
-                                : Icons.trending_down,
-                            size: 9,
+                        const SizedBox(width: 2),
+                        Text(
+                          stat.trend,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ).copyWith(
                             color:
                                 stat.isPositive
                                     ? AdminTheme.successGreen
                                     : AdminTheme.errorRed,
                           ),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(
-                              stat.trend,
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                              ).copyWith(
-                                color:
-                                    stat.isPositive
-                                        ? AdminTheme.successGreen
-                                        : AdminTheme.errorRed,
-                              ),
-                              overflow: TextOverflow.clip,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
               ],
@@ -426,8 +419,10 @@ class _StatsCardsState extends State<StatsCards> {
               height: app_utils.AppResponsiveUtils.responsiveSpacing(context),
             ),
 
-            // Value
-            Flexible(
+            // Value - Use FittedBox to handle horizontal scaling and ensure vertical space
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
               child: AnimatedCounter(
                 value: stat.value,
                 style: TextStyle(
@@ -439,31 +434,27 @@ class _StatsCardsState extends State<StatsCards> {
                   ),
                   fontWeight: FontWeight.bold,
                   color: stat.color,
+                  height: 1.2, // Give more vertical space to prevent clipping
                 ),
                 prefix: stat.isCurrency ? '₹' : '',
               ),
             ),
 
-            SizedBox(
-              height:
-                  app_utils.AppResponsiveUtils.responsiveSpacing(context) * 0.5,
-            ),
+            const SizedBox(height: 4),
 
             // Title
-            Flexible(
-              child: Text(
-                stat.title,
-                style: TextStyle(
-                  fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
-                    context,
-                    mobile: 12,
-                  ),
-                  color: AdminTheme.textSecondary,
-                  fontWeight: FontWeight.w500,
+            Text(
+              stat.title,
+              style: TextStyle(
+                fontSize: app_utils.AppResponsiveUtils.responsiveFontSize(
+                  context,
+                  mobile: 12,
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
+                color: AdminTheme.textSecondary,
+                fontWeight: FontWeight.w500,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ],
         ),

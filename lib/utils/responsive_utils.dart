@@ -77,17 +77,25 @@ class AppResponsiveUtils {
 
     if (width < mobileBreakpoint) {
       return 1; // Mobile - single column
-    } else if (width < 900) {
+    } else if (width < 800) {
+      return 2; // Extra small tablet - 2 columns
+    } else if (width < 1100) {
       return 2; // Small tablet - 2 columns
-    } else if (width < 1200) {
-      return 3; // Large tablet - 3 columns
+    } else if (width < 1400) {
+      return 3; // Large tablet/Small desktop - 3 columns
     } else {
-      return 4; // Desktop - 4 columns
+      return 4; // Large Desktop - 4 columns
     }
   }
 
   // Card aspect ratio
   static double getCardAspectRatio(BuildContext context) {
-    return responsive(context, mobile: 1.8, tablet: 1.5, desktop: 1.2);
+    return responsive(
+      context,
+      mobile: 1.8,
+      tablet: 1.35, // Taller cards for tablet
+      desktop: 1.15, // Taller cards for desktop
+      largeDesktop: 1.25,
+    );
   }
 }
