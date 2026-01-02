@@ -47,8 +47,8 @@ class _DashboardModuleState extends State<DashboardModule>
     final isMobile = ResponsiveBreakpoints.of(context).isMobile;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Use stacked layout for screens smaller than 700px to avoid overflow
-    final shouldStack = screenWidth < 700;
+    // Use stacked layout for screens smaller than 900px to avoid overflow in content sidebars
+    final shouldStack = screenWidth < 900;
 
     return FadeTransition(
       opacity: _fadeAnimation,

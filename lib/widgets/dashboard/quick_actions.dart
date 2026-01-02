@@ -173,13 +173,23 @@ class _QuickActionsState extends State<QuickActions> {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_rounded, color: AdminTheme.errorRed, size: 20),
+              const Icon(
+                Icons.warning_rounded,
+                color: AdminTheme.errorRed,
+                size: 20,
+              ),
               const SizedBox(width: AdminTheme.spacingSm),
-              Text(
-                'Emergency Actions',
-                style: AdminTheme.bodyMedium.copyWith(
-                  color: AdminTheme.errorRed,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Emergency Actions',
+                    style: AdminTheme.bodyMedium.copyWith(
+                      color: AdminTheme.errorRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -259,30 +269,40 @@ class _QuickActionsState extends State<QuickActions> {
                       ),
                   ],
                 ),
-                const SizedBox(width: AdminTheme.spacingLg),
+                const SizedBox(width: AdminTheme.spacingMd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AdminTheme.textPrimary,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AdminTheme.textPrimary,
+                          ),
                         ),
                       ),
                       Text(
                         subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: const TextStyle(
+                          fontSize: 10,
                           color: AdminTheme.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: AdminTheme.textSecondary),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AdminTheme.textSecondary,
+                  size: 20,
+                ),
               ],
             ),
           ),
