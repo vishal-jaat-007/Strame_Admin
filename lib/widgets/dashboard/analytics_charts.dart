@@ -594,3 +594,5 @@ class _AnalyticsChartsState extends State<AnalyticsCharts>
     );
   }
 }
+
+

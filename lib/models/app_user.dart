@@ -160,3 +160,5 @@ class AppUser {
   bool get isActive => status == 'active' && !isBlocked;
 }
 
+
+

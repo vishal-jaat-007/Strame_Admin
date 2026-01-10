@@ -195,7 +195,14 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount:
                   app_utils.AppResponsiveUtils.isTablet(context) ? 1 : 2,
-              childAspectRatio: screenWidth < 1300 ? 1.35 : 1.6,
+              childAspectRatio:
+                  isHistory
+                      ? (screenWidth < 1300
+                          ? 1.2
+                          : 1.4) // More space for history
+                      : (screenWidth < 1300
+                          ? 1.05
+                          : 1.2), // Much taller for pending due to buttons
               crossAxisSpacing: AdminTheme.spacingMd,
               mainAxisSpacing: AdminTheme.spacingMd,
             ),
@@ -658,6 +665,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
           );
         }
 
+        final screenWidth = MediaQuery.of(context).size.width;
         return GridView.builder(
           padding: const EdgeInsets.all(AdminTheme.spacingLg),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -667,7 +675,7 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
                     : app_utils.AppResponsiveUtils.isTablet(context)
                     ? 2
                     : 3,
-            childAspectRatio: 1.1,
+            childAspectRatio: screenWidth < 1400 ? 0.95 : 1.1,
             crossAxisSpacing: AdminTheme.spacingMd,
             mainAxisSpacing: AdminTheme.spacingMd,
           ),
@@ -693,9 +701,12 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Recent History (Withdrawals & KYC)',
-                style: AdminTheme.headlineSmall.copyWith(fontSize: 18),
+              Expanded(
+                child: Text(
+                  'Recent History (Withdrawals & KYC)',
+                  style: AdminTheme.headlineSmall.copyWith(fontSize: 18),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -811,18 +822,23 @@ class _WithdrawalRequestsScreenState extends State<WithdrawalRequestsScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            label,
+            '$label: ',
             style: const TextStyle(
               color: AdminTheme.textTertiary,
               fontSize: 12,
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AdminTheme.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AdminTheme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

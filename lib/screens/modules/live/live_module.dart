@@ -36,18 +36,23 @@ class _LiveModuleState extends State<LiveModule> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Live Monitoring',
-                  style:
-                      isMobile
-                          ? AdminTheme.headlineSmall
-                          : AdminTheme.headlineMedium,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Live Monitoring',
+                    style:
+                        isMobile
+                            ? AdminTheme.headlineSmall
+                            : AdminTheme.headlineMedium,
+                  ),
                 ),
                 const SizedBox(height: AdminTheme.spacingXs),
                 Text(
                   'Monitor and manage active live sessions in real-time.',
                   style: AdminTheme.bodyMedium.copyWith(
                     color: AdminTheme.textSecondary,
+                    fontSize: isMobile ? 12 : 14,
                   ),
                 ),
               ],
@@ -160,7 +165,7 @@ class _LiveModuleState extends State<LiveModule> {
                   crossAxisCount: isMobile ? 1 : (screenWidth < 1100 ? 2 : 3),
                   mainAxisSpacing: AdminTheme.spacingLg,
                   crossAxisSpacing: AdminTheme.spacingLg,
-                  childAspectRatio: isMobile ? 1.1 : 0.85,
+                  childAspectRatio: isMobile ? 1.0 : 0.85,
                 ),
                 itemCount: sessions.length,
                 itemBuilder: (context, index) {
@@ -593,3 +598,5 @@ class _LiveDurationTimerState extends State<_LiveDurationTimer> {
     );
   }
 }
+
+

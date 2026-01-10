@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/admin_theme.dart';
 import '../../services/user_service.dart';
 import '../../models/app_user.dart';
@@ -22,91 +23,131 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String _searchQuery = '';
   String _statusFilter = 'All'; // All, Active, Blocked
 
+  final List<AppUser> _users = [];
+  DocumentSnapshot? _lastDocument;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        _hasMore) {
+      _loadUsers();
+    }
+  }
+
+  Future<void> _loadUsers({bool refresh = false}) async {
+    if (_isLoading) return;
+    if (refresh) {
+      _users.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final snapshot = await _userService.getUsersPaginated(
+        limit: 20,
+        startAfter: _lastDocument,
+        searchQuery: _searchQuery,
+      );
+
+      if (snapshot.docs.isEmpty) {
+        setState(() {
+          _hasMore = false;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final newUsers =
+          snapshot.docs
+              .map((doc) => AppUser.fromFirestore(doc.data()))
+              .toList();
+
+      setState(() {
+        _users.addAll(newUsers);
+        _lastDocument = snapshot.docs.last;
+        _isLoading = false;
+        if (newUsers.length < 20) _hasMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final content = StreamBuilder<List<AppUser>>(
-      stream: _userService.getAllUsers(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: const TextStyle(color: AdminTheme.errorRed),
-            ),
-          );
-        }
+    // Apply client-side filters on the already loaded paginated list
+    var filteredUsers = _users;
+    if (_statusFilter != 'All') {
+      filteredUsers =
+          filteredUsers.where((user) {
+            if (_statusFilter == 'Blocked') return user.isBlocked;
+            if (_statusFilter == 'Active') return !user.isBlocked;
+            return true;
+          }).toList();
+    }
 
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AdminTheme.primaryPurple,
-              ),
-            ),
-          );
-        }
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search & Filter
+        _buildToolbar(context),
 
-        var users = snapshot.data!;
+        const SizedBox(height: AdminTheme.spacingMd),
 
-        // Apply filters
-        if (_searchQuery.isNotEmpty) {
-          users =
-              users.where((user) {
-                final query = _searchQuery.toLowerCase();
-                return user.name.toLowerCase().contains(query) ||
-                    user.email.toLowerCase().contains(query);
-              }).toList();
-        }
-
-        if (_statusFilter != 'All') {
-          users =
-              users.where((user) {
-                if (_statusFilter == 'Blocked') return user.isBlocked;
-                if (_statusFilter == 'Active') return !user.isBlocked;
-                return true;
-              }).toList();
-        }
-
-        // Calculate stats
-        final totalUsers = users.length;
-        final onlineUsers = users.where((u) => u.isOnline).length;
-        final blockedUsers = users.where((u) => u.isBlocked).length;
-        final newUsersToday =
-            users.where((u) {
-              final now = DateTime.now();
-              return u.createdAt.year == now.year &&
-                  u.createdAt.month == now.month &&
-                  u.createdAt.day == now.day;
-            }).length;
-
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Stats Cards
-              _buildStatsCards(
-                context,
-                totalUsers,
-                onlineUsers,
-                blockedUsers,
-                newUsersToday,
-              ),
-
-              const SizedBox(height: AdminTheme.spacingLg),
-
-              // Search & Filter
-              _buildToolbar(context),
-
-              const SizedBox(height: AdminTheme.spacingMd),
-
-              // User List
-              users.isEmpty
+        // User List
+        Expanded(
+          child:
+              filteredUsers.isEmpty && !_isLoading
                   ? _buildEmptyState()
-                  : _buildUserList(context, users),
-            ],
-          ),
-        );
-      },
+                  : ListView(
+                    controller: _scrollController,
+                    children: [
+                      // User List
+                      _buildUserList(context, filteredUsers),
+
+                      // Loading indicator at bottom
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AdminTheme.spacingMd),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+
+                      // Load more button (fallback)
+                      if (_hasMore && !_isLoading)
+                        Center(
+                          child: TextButton(
+                            onPressed: _loadUsers,
+                            child: const Text('Load More'),
+                          ),
+                        ),
+                      const SizedBox(height: 100), // Bottom padding
+                    ],
+                  ),
+        ),
+      ],
     );
 
     if (widget.isEmbedded) {
@@ -140,150 +181,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildStatsCards(
-    BuildContext context,
-    int total,
-    int active,
-    int blocked,
-    int newToday,
-  ) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
-
-    final cards = [
-      _buildStatCard(
-        'Total Users',
-        total.toString(),
-        Icons.people,
-        AdminTheme.primaryPurple,
-      ),
-      _buildStatCard(
-        'Active Users',
-        active.toString(),
-        Icons.check_circle,
-        AdminTheme.successGreen,
-      ),
-      _buildStatCard(
-        'Blocked Users',
-        blocked.toString(),
-        Icons.block,
-        AdminTheme.errorRed,
-      ),
-      _buildStatCard(
-        'New Today',
-        newToday.toString(),
-        Icons.person_add,
-        AdminTheme.accentBlue,
-      ),
-    ];
-
-    if (isMobile) {
-      return SizedBox(
-        height: 150, // Increased height to prevent vertical overflow
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          itemCount: cards.length,
-          separatorBuilder:
-              (context, index) => const SizedBox(width: AdminTheme.spacingMd),
-          itemBuilder:
-              (context, index) => SizedBox(width: 170, child: cards[index]),
-        ),
-      );
-    }
-
-    // Desktop/Tablet: Use Grid for smaller desktop widths, Row for larger
-    if (screenWidth < 1100) {
-      return GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        childAspectRatio: 1.9, // Reduced from 2.2 to make cards taller
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        children: cards,
-      );
-    }
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children:
-            cards
-                .map(
-                  (card) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: card,
-                    ),
-                  ),
-                )
-                .toList(),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return GlassCard(
-      padding: const EdgeInsets.all(AdminTheme.spacingMd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 24),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.arrow_forward, color: color, size: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  color: AdminTheme.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AdminTheme.textSecondary,
-                fontSize: 12,
-              ),
-              maxLines: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildToolbar(BuildContext context) {
     return GlassCard(
       padding: const EdgeInsets.all(AdminTheme.spacingMd),
@@ -292,7 +189,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Expanded(
             child: TextField(
               style: const TextStyle(color: AdminTheme.textPrimary),
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (value) {
+                _searchQuery = value;
+                _loadUsers(refresh: true);
+              },
               decoration: InputDecoration(
                 hintText: 'Search users...',
                 hintStyle: const TextStyle(color: AdminTheme.textTertiary),
@@ -368,10 +268,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _buildUserList(BuildContext context, List<AppUser> users) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
-
-    if (isMobile) {
+    if (app_utils.AppResponsiveUtils.isMobile(context)) {
       return ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -382,6 +279,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return GlassCard(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -390,10 +289,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             minWidth: MediaQuery.of(context).size.width - 64,
           ),
           child: DataTable(
-            headingRowColor: MaterialStateProperty.all(
+            headingRowColor: WidgetStateProperty.all(
               AdminTheme.backgroundSecondary.withOpacity(0.5),
             ),
-            dataRowColor: MaterialStateProperty.all(Colors.transparent),
+            dataRowColor: WidgetStateProperty.all(Colors.transparent),
             dividerThickness: 0.5,
             horizontalMargin: screenWidth < 1000 ? 8 : AdminTheme.spacingLg,
             columnSpacing: screenWidth < 1000 ? 12 : AdminTheme.spacingLg,
@@ -427,7 +326,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               DataColumn(
                 label: Text(
-                  'Status',
+                  'Coins',
                   style: TextStyle(
                     color: AdminTheme.textSecondary,
                     fontWeight: FontWeight.bold,
@@ -437,6 +336,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               DataColumn(
                 label: Text(
                   'Joined',
+                  style: TextStyle(
+                    color: AdminTheme.textSecondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Status',
                   style: TextStyle(
                     color: AdminTheme.textSecondary,
                     fontWeight: FontWeight.bold,
@@ -465,34 +373,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       cells: [
         DataCell(
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Stack(
-                children: [
-                  UserAvatar(
-                    photoUrl: user.photoUrl,
-                    name: user.name,
-                    radius: 16,
-                  ),
-                  if (user.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: AdminTheme.successGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AdminTheme.cardDark,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 12),
+              UserAvatar(photoUrl: user.photoUrl, name: user.name, radius: 16),
+              const SizedBox(width: 8),
               Text(
                 user.name,
                 style: const TextStyle(
@@ -509,85 +393,38 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             style: const TextStyle(color: AdminTheme.textSecondary),
           ),
         ),
+        DataCell(_buildRoleBadge(user.role)),
         DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (user.isCreator
-                      ? AdminTheme.accentBlue
-                      : AdminTheme.textTertiary)
-                  .withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
+          Text(
+            user.coins.toString(),
+            style: const TextStyle(
+              color: AdminTheme.accentGold,
+              fontWeight: FontWeight.bold,
             ),
-            child: Text(
-              user.role.toUpperCase(),
-              style: TextStyle(
-                color:
-                    user.isCreator
-                        ? AdminTheme.accentBlue
-                        : AdminTheme.textTertiary,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        DataCell(
-          Builder(
-            builder: (context) {
-              Color color;
-              String text;
-              if (user.isBlocked) {
-                color = AdminTheme.errorRed;
-                text = 'BLOCKED';
-              } else if (user.isOnline) {
-                color = AdminTheme.successGreen;
-                text = 'ONLINE';
-              } else {
-                color = AdminTheme.textTertiary;
-                text = 'OFFLINE';
-              }
-
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              );
-            },
           ),
         ),
         DataCell(
           Text(
-            DateFormat('MMM d, y').format(user.createdAt),
-            style: const TextStyle(color: AdminTheme.textSecondary),
+            DateFormat('MMM d, yyyy').format(user.createdAt),
+            style: const TextStyle(
+              color: AdminTheme.textTertiary,
+              fontSize: 13,
+            ),
           ),
         ),
+        DataCell(_buildStatusBadge(user.isBlocked)),
         DataCell(
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(
-                  user.isBlocked ? Icons.lock_open : Icons.block,
-                  color:
-                      user.isBlocked
-                          ? AdminTheme.successGreen
-                          : AdminTheme.errorRed,
-                  size: 20,
-                ),
-                tooltip: user.isBlocked ? 'Unblock User' : 'Block User',
-                onPressed: () => _toggleBlockStatus(user),
-              ),
-            ],
+          IconButton(
+            icon: Icon(
+              user.isBlocked ? Icons.lock_open_rounded : Icons.block_flipped,
+              color:
+                  user.isBlocked
+                      ? AdminTheme.successGreen
+                      : AdminTheme.errorRed,
+              size: 20,
+            ),
+            onPressed: () => _toggleBlockStatus(user),
+            tooltip: user.isBlocked ? 'Unblock User' : 'Block User',
           ),
         ),
       ],
@@ -601,33 +438,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         children: [
           Row(
             children: [
-              Stack(
-                children: [
-                  UserAvatar(
-                    photoUrl: user.photoUrl,
-                    name: user.name,
-                    radius: 24,
-                    fontSize: 18,
-                  ),
-                  if (user.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: AdminTheme.successGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AdminTheme.cardDark,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              UserAvatar(photoUrl: user.photoUrl, name: user.name, radius: 24),
               const SizedBox(width: AdminTheme.spacingMd),
               Expanded(
                 child: Column(
@@ -635,115 +446,112 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   children: [
                     Text(
                       user.name,
-                      style: const TextStyle(
-                        color: AdminTheme.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14, // Slightly smaller for narrow screens
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      style: AdminTheme.headlineSmall.copyWith(fontSize: 16),
                     ),
                     Text(
                       user.email,
-                      style: const TextStyle(
+                      style: AdminTheme.bodySmall.copyWith(
                         color: AdminTheme.textSecondary,
-                        fontSize: 11,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              Builder(
-                builder: (context) {
-                  Color color;
-                  String text;
-                  if (user.isBlocked) {
-                    color = AdminTheme.errorRed;
-                    text = 'BLOCKED';
-                  } else if (user.isOnline) {
-                    color = AdminTheme.successGreen;
-                    text = 'ONLINE';
-                  } else {
-                    color = AdminTheme.textTertiary;
-                    text = 'OFFLINE';
-                  }
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      text,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  );
-                },
-              ),
+              _buildRoleBadge(user.role),
             ],
           ),
-          const SizedBox(height: AdminTheme.spacingMd),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Text(
-                'Joined: ${DateFormat('MMM d, y').format(user.createdAt)}',
-                style: const TextStyle(
-                  color: AdminTheme.textTertiary,
-                  fontSize: 11,
-                ),
-              ),
-              Text(
-                'Role: ${user.role.toUpperCase()}',
-                style: const TextStyle(
-                  color: AdminTheme.textTertiary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AdminTheme.spacingMd),
-          const Divider(color: AdminTheme.borderColor),
+          const Divider(height: AdminTheme.spacingLg, thickness: 0.5),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextButton.icon(
-                onPressed: () => _toggleBlockStatus(user),
-                icon: Icon(
-                  user.isBlocked ? Icons.lock_open : Icons.block,
-                  color:
-                      user.isBlocked
-                          ? AdminTheme.successGreen
-                          : AdminTheme.errorRed,
-                  size: 18,
-                ),
-                label: Text(
-                  user.isBlocked ? 'Unblock' : 'Block',
-                  style: TextStyle(
-                    color:
-                        user.isBlocked
-                            ? AdminTheme.successGreen
-                            : AdminTheme.errorRed,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Coins: ${user.coins}',
+                    style: TextStyle(
+                      color: AdminTheme.accentGold,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
+                  Text(
+                    'Joined: ${DateFormat('MMM d').format(user.createdAt)}',
+                    style: AdminTheme.labelSmall,
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _buildStatusBadge(user.isBlocked),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      user.isBlocked
+                          ? Icons.lock_open_rounded
+                          : Icons.block_flipped,
+                      color:
+                          user.isBlocked
+                              ? AdminTheme.successGreen
+                              : AdminTheme.errorRed,
+                    ),
+                    onPressed: () => _toggleBlockStatus(user),
+                  ),
+                ],
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRoleBadge(String role) {
+    Color color;
+    switch (role.toLowerCase()) {
+      case 'admin':
+        color = AdminTheme.errorRed;
+        break;
+      case 'creator':
+        color = AdminTheme.primaryPurple;
+        break;
+      default:
+        color = AdminTheme.secondaryBlue;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        role.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(bool isBlocked) {
+    final color = isBlocked ? AdminTheme.errorRed : AdminTheme.successGreen;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        isBlocked ? 'BLOCKED' : 'ACTIVE',
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -790,7 +598,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         } else {
           await _userService.blockUser(user.uid);
         }
+
         if (mounted) {
+          setState(() {
+            final index = _users.indexWhere((u) => u.uid == user.uid);
+            if (index != -1) {
+              _users[index] = user.copyWith(isBlocked: !user.isBlocked);
+            }
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('User ${action}ed successfully'),

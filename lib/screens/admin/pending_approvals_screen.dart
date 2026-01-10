@@ -5,6 +5,7 @@ import '../../models/creator.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/animated_button.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
+import '../../widgets/common/user_avatar.dart';
 import 'package:intl/intl.dart';
 
 class PendingApprovalsScreen extends StatefulWidget {
@@ -129,25 +130,10 @@ class _PendingApprovalsScreenState extends State<PendingApprovalsScreen> {
             // Header: Avatar & Name
             Row(
               children: [
-                CircleAvatar(
+                UserAvatar(
+                  photoUrl: creator.photoUrl,
+                  name: creator.displayName,
                   radius: 24,
-                  backgroundColor: AdminTheme.primaryPurple.withOpacity(0.2),
-                  backgroundImage:
-                      creator.photoUrl != null && creator.photoUrl!.isNotEmpty
-                          ? NetworkImage(creator.photoUrl!)
-                          : null,
-                  child:
-                      creator.photoUrl == null || creator.photoUrl!.isEmpty
-                          ? Text(
-                            creator.displayName.isNotEmpty
-                                ? creator.displayName[0].toUpperCase()
-                                : '?',
-                            style: const TextStyle(
-                              color: AdminTheme.primaryPurple,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                          : null,
                 ),
                 const SizedBox(width: AdminTheme.spacingMd),
                 Expanded(

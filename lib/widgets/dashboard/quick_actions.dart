@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../utils/responsive_utils.dart' as app_utils;
 import '../../models/navigation_item.dart';
 import '../common/glass_card.dart';
 import '../common/animated_button.dart';
+import '../../services/app_config_service.dart';
 
 class QuickActions extends StatefulWidget {
   final ValueChanged<NavigationItem> onNavItemChanged;
@@ -19,8 +21,12 @@ class QuickActions extends StatefulWidget {
 
 class _QuickActionsState extends State<QuickActions> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AppConfigService _configService = AppConfigService();
   int _pendingApprovals = 0;
   int _pendingWithdrawals = 0;
+
+  // Stream Subscriptions
+  final List<StreamSubscription> _subscriptions = [];
 
   @override
   void initState() {
@@ -28,6 +34,15 @@ class _QuickActionsState extends State<QuickActions> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupListeners();
     });
+  }
+
+  @override
+  void dispose() {
+    for (var sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+    super.dispose();
   }
 
   void _setupListeners() {
@@ -39,7 +54,7 @@ class _QuickActionsState extends State<QuickActions> {
     );
 
     // Listen for pending creator approvals
-    _firestore
+    final approvalsSub = _firestore
         .collection('creators')
         .where('isApproved', isEqualTo: false)
         .snapshots()
@@ -53,12 +68,18 @@ class _QuickActionsState extends State<QuickActions> {
             }
           },
           onError: (e) {
-            debugPrint('❌ [QuickActions] Error fetching pending approvals: $e');
+            if (!e.toString().contains('permission-denied')) {
+              debugPrint(
+                '❌ [QuickActions] Error fetching pending approvals: $e',
+              );
+            }
           },
+          cancelOnError: true,
         );
+    _subscriptions.add(approvalsSub);
 
     // Listen for pending withdrawals
-    _firestore
+    final withdrawalsSub = _firestore
         .collection('withdraw_requests')
         .where('status', isEqualTo: 'pending')
         .snapshots()
@@ -72,11 +93,15 @@ class _QuickActionsState extends State<QuickActions> {
             }
           },
           onError: (e) {
-            debugPrint(
-              '❌ [QuickActions] Error fetching pending withdrawals: $e',
-            );
+            if (!e.toString().contains('permission-denied')) {
+              debugPrint(
+                '❌ [QuickActions] Error fetching pending withdrawals: $e',
+              );
+            }
           },
+          cancelOnError: true,
         );
+    _subscriptions.add(withdrawalsSub);
   }
 
   @override
@@ -195,17 +220,34 @@ class _QuickActionsState extends State<QuickActions> {
             ],
           ),
           const SizedBox(height: AdminTheme.spacingMd),
-          SizedBox(
-            width: double.infinity,
-            child: AnimatedButton(
-              onPressed:
-                  () => _showEmergencyDialog(context, 'Maintenance Mode'),
-              backgroundColor: AdminTheme.errorRed,
-              child: Text(
-                'Enable Maintenance',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
+          StreamBuilder<Map<String, dynamic>>(
+            stream: _configService.getSystemSettings(),
+            builder: (context, snapshot) {
+              final settings = snapshot.data ?? {'maintenanceMode': false};
+              final isMaintenance = settings['maintenanceMode'] ?? false;
+
+              return SizedBox(
+                width: double.infinity,
+                child: AnimatedButton(
+                  onPressed:
+                      () => _showEmergencyDialog(
+                        context,
+                        'Maintenance Mode',
+                        isMaintenance,
+                      ),
+                  backgroundColor:
+                      isMaintenance
+                          ? AdminTheme.successGreen
+                          : AdminTheme.errorRed,
+                  child: Text(
+                    isMaintenance
+                        ? 'Disable Maintenance'
+                        : 'Enable Maintenance',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -311,31 +353,78 @@ class _QuickActionsState extends State<QuickActions> {
     );
   }
 
-  void _showEmergencyDialog(BuildContext context, String action) {
+  void _showEmergencyDialog(
+    BuildContext context,
+    String action,
+    bool currentState,
+  ) {
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
             backgroundColor: AdminTheme.cardDark,
             title: Text(
-              'Confirm $action',
-              style: const TextStyle(color: AdminTheme.errorRed),
+              'Confirm ${currentState ? "Disable" : "Enable"} $action',
+              style: TextStyle(
+                color:
+                    currentState
+                        ? AdminTheme.successGreen
+                        : AdminTheme.errorRed,
+              ),
             ),
-            content: Text('Are you sure? This will affect all live users.'),
+            content: Text(
+              currentState
+                  ? 'Are you sure you want to disable Maintenance Mode? Normal users will be able to access the platform again.'
+                  : 'Are you sure you want to enable Maintenance Mode? This will restrict access for all regular users immediately.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  'Confirm',
-                  style: TextStyle(color: AdminTheme.errorRed),
+                  'Cancel',
+                  style: TextStyle(color: AdminTheme.textSecondary),
                 ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(context);
+                  try {
+                    await _configService.updateSystemSettings({
+                      'maintenanceMode': !currentState,
+                    });
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Maintenance Mode ${!currentState ? "ENABLED" : "DISABLED"}',
+                        ),
+                        backgroundColor:
+                            !currentState
+                                ? AdminTheme.warningOrange
+                                : AdminTheme.successGreen,
+                      ),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Failed: $e'),
+                        backgroundColor: AdminTheme.errorRed,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      currentState
+                          ? AdminTheme.successGreen
+                          : AdminTheme.errorRed,
+                ),
+                child: const Text('Confirm'),
               ),
             ],
           ),
     );
   }
 }
+
+

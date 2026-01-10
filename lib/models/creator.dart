@@ -25,6 +25,9 @@ class Creator {
   final double rating;
   final int reviewCount;
   final bool isBlocked;
+  final bool isVerified;
+  final int? customVoiceRate;
+  final int? customVideoRate;
 
   Creator({
     required this.uid,
@@ -49,6 +52,9 @@ class Creator {
     this.rating = 0.0,
     this.reviewCount = 0,
     this.isBlocked = false,
+    this.isVerified = false,
+    this.customVoiceRate,
+    this.customVideoRate,
   });
 
   factory Creator.fromFirestore(Map<String, dynamic> data) {
@@ -73,8 +79,21 @@ class Creator {
 
     return Creator(
       uid: data['uid'] ?? '',
-      displayName: data['displayName'] ?? '',
-      photoUrl: data['photoUrl'],
+      displayName:
+          data['displayName'] ??
+          data['name'] ??
+          data['fullName'] ??
+          data['full_name'] ??
+          data['userName'] ??
+          data['username'] ??
+          data['display_name'] ??
+          'Anonymous',
+      photoUrl:
+          data['photoUrl'] ??
+          data['avatarUrl'] ??
+          data['image'] ??
+          data['profilePic'] ??
+          data['profile_pic'],
       category: data['category'] ?? '',
       isOnline: data['isOnline'] ?? false,
       // Map App fields (isVoiceEnabled) to Admin fields (voiceEnabled)
@@ -96,6 +115,9 @@ class Creator {
       rating: (data['rating'] ?? 0).toDouble(),
       reviewCount: data['reviewCount'] ?? 0,
       isBlocked: data['isBlocked'] ?? false,
+      isVerified: data['isVerified'] ?? false,
+      customVoiceRate: data['customVoiceRate'],
+      customVideoRate: data['customVideoRate'],
     );
   }
 
@@ -124,6 +146,9 @@ class Creator {
       'rating': rating,
       'reviewCount': reviewCount,
       'isBlocked': isBlocked,
+      'isVerified': isVerified,
+      'customVoiceRate': customVoiceRate,
+      'customVideoRate': customVideoRate,
     };
   }
 
@@ -150,6 +175,9 @@ class Creator {
     double? rating,
     int? reviewCount,
     bool? isBlocked,
+    bool? isVerified,
+    int? customVoiceRate,
+    int? customVideoRate,
   }) {
     return Creator(
       uid: uid ?? this.uid,
@@ -174,6 +202,9 @@ class Creator {
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
       isBlocked: isBlocked ?? this.isBlocked,
+      isVerified: isVerified ?? this.isVerified,
+      customVoiceRate: customVoiceRate ?? this.customVoiceRate,
+      customVideoRate: customVideoRate ?? this.customVideoRate,
     );
   }
 
@@ -191,4 +222,3 @@ class Creator {
     return const Color(0xFFB0B0B0);
   }
 }
-

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/admin_theme.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
@@ -17,83 +18,122 @@ class TransactionsScreen extends StatefulWidget {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final TransactionService _transactionService = TransactionService();
+  final List<TransactionModel> _transactions = [];
+  DocumentSnapshot? _lastDocument;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        _hasMore) {
+      _loadTransactions();
+    }
+  }
+
+  Future<void> _loadTransactions({bool refresh = false}) async {
+    if (_isLoading) return;
+    if (refresh) {
+      _transactions.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final snapshot = await _transactionService.getTransactionsPaginated(
+        limit: 20,
+        startAfter: _lastDocument,
+      );
+
+      if (snapshot.docs.isEmpty) {
+        setState(() {
+          _hasMore = false;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final newTransactions =
+          snapshot.docs
+              .map((doc) => TransactionModel.fromFirestore(doc))
+              .toList();
+
+      setState(() {
+        _transactions.addAll(newTransactions);
+        _lastDocument = snapshot.docs.last;
+        _isLoading = false;
+        if (newTransactions.length < 20) _hasMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading transactions: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final content = StreamBuilder<List<TransactionModel>>(
-      stream: _transactionService.getTransactions(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: const TextStyle(color: AdminTheme.errorRed),
-            ),
-          );
-        }
+    final content = Column(
+      children: [
+        Expanded(
+          child:
+              _transactions.isEmpty && !_isLoading
+                  ? _buildEmptyState()
+                  : ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(
+                      bottom: AdminTheme.spacingLg,
+                    ),
+                    children: [
+                      if (app_utils.AppResponsiveUtils.isMobile(context))
+                        ..._transactions.map(
+                          (t) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AdminTheme.spacingMd,
+                            ),
+                            child: _buildTransactionCard(t),
+                          ),
+                        )
+                      else
+                        _buildGrid(context, _transactions),
 
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AdminTheme.primaryPurple,
-              ),
-            ),
-          );
-        }
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AdminTheme.spacingMd),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
 
-        final transactions = snapshot.data!;
-
-        if (transactions.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.receipt_long,
-                  size: 64,
-                  color: AdminTheme.textSecondary.withOpacity(0.5),
-                ),
-                const SizedBox(height: AdminTheme.spacingMd),
-                Text(
-                  'No transactions found',
-                  style: AdminTheme.headlineSmall.copyWith(
-                    color: AdminTheme.textSecondary,
+                      if (_hasMore && !_isLoading)
+                        Center(
+                          child: TextButton(
+                            onPressed: _loadTransactions,
+                            child: const Text('Load More'),
+                          ),
+                        ),
+                      const SizedBox(height: 100),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (app_utils.AppResponsiveUtils.isMobile(context)) {
-          return ListView.separated(
-            padding: const EdgeInsets.only(bottom: AdminTheme.spacingLg),
-            itemCount: transactions.length,
-            separatorBuilder:
-                (context, index) =>
-                    const SizedBox(height: AdminTheme.spacingMd),
-            itemBuilder: (context, index) {
-              return _buildTransactionCard(transactions[index]);
-            },
-          );
-        } else {
-          return GridView.builder(
-            padding: const EdgeInsets.only(bottom: AdminTheme.spacingLg),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount:
-                  app_utils.AppResponsiveUtils.isTablet(context) ? 2 : 3,
-              childAspectRatio: 2.5,
-              crossAxisSpacing: AdminTheme.spacingMd,
-              mainAxisSpacing: AdminTheme.spacingMd,
-            ),
-            itemCount: transactions.length,
-            itemBuilder: (context, index) {
-              return _buildTransactionCard(transactions[index]);
-            },
-          );
-        }
-      },
+        ),
+      ],
     );
 
     if (widget.isEmbedded) {
@@ -119,11 +159,57 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           icon: const Icon(Icons.arrow_back, color: AdminTheme.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            onPressed: () => _loadTransactions(refresh: true),
+            icon: const Icon(Icons.refresh, color: AdminTheme.textPrimary),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(AdminTheme.spacingLg),
         child: content,
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.receipt_long,
+            size: 64,
+            color: AdminTheme.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: AdminTheme.spacingMd),
+          Text(
+            'No transactions found',
+            style: AdminTheme.headlineSmall.copyWith(
+              color: AdminTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, List<TransactionModel> transactions) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: app_utils.AppResponsiveUtils.isTablet(context) ? 2 : 3,
+        childAspectRatio: screenWidth < 1200 ? 2.0 : 2.4,
+        crossAxisSpacing: AdminTheme.spacingMd,
+        mainAxisSpacing: AdminTheme.spacingMd,
+      ),
+      itemCount: transactions.length,
+      itemBuilder: (context, index) {
+        return _buildTransactionCard(transactions[index]);
+      },
     );
   }
 
@@ -176,26 +262,34 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    transaction.description.isNotEmpty
-                        ? transaction.description
-                        : transaction.type.toUpperCase(),
-                    style: const TextStyle(
-                      color: AdminTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      transaction.description.isNotEmpty
+                          ? transaction.description
+                          : transaction.type.toUpperCase(),
+                      style: const TextStyle(
+                        color: AdminTheme.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    DateFormat(
-                      'MMM d, y • h:mm a',
-                    ).format(transaction.createdAt),
-                    style: const TextStyle(
-                      color: AdminTheme.textSecondary,
-                      fontSize: 12,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      DateFormat(
+                        'MMM d, y • h:mm a',
+                      ).format(transaction.createdAt),
+                      style: const TextStyle(
+                        color: AdminTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -206,12 +300,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  currencyFormat.format(transaction.amount),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    currencyFormat.format(transaction.amount),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class AppConfigService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,7 +12,10 @@ class AppConfigService {
         .collection(_collection)
         .doc(_docId)
         .snapshots()
-        .map((doc) => doc.data() ?? _defaultSettings);
+        .map((doc) => doc.data() ?? _defaultSettings)
+        .handleError((e) {
+          debugPrint('Error in monetization settings stream: $e');
+        });
   }
 
   // Update monetization settings
@@ -32,7 +36,11 @@ class AppConfigService {
           (doc) =>
               doc.data() ??
               {'maintenanceMode': false, 'registrationsOpen': true},
-        );
+        )
+        .handleError((e) {
+          debugPrint('Error in system settings stream: $e');
+          return {'maintenanceMode': false, 'registrationsOpen': true};
+        });
   }
 
   // Update system settings
@@ -54,7 +62,11 @@ class AppConfigService {
               snapshot.docs
                   .map((doc) => {...doc.data(), 'id': doc.id})
                   .toList(),
-        );
+        )
+        .handleError((e) {
+          debugPrint('Error in coin packages stream: $e');
+          return <Map<String, dynamic>>[];
+        });
   }
 
   // Add or update coin package

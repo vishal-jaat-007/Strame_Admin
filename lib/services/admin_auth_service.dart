@@ -3,6 +3,7 @@ import 'dart:core';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import '../models/admin_user.dart';
 
 class AdminAuthService {
@@ -221,12 +222,20 @@ class AdminAuthService {
 
   // Get admin profile stream for real-time updates
   Stream<AdminUser?> getAdminProfileStream(String uid) {
-    return _firestore.collection('admins').doc(uid).snapshots().map((doc) {
-      if (doc.exists && doc.data() != null) {
-        return AdminUser.fromFirestore(doc.data()!);
-      }
-      return null;
-    });
+    return _firestore
+        .collection('admins')
+        .doc(uid)
+        .snapshots()
+        .map((doc) {
+          if (doc.exists && doc.data() != null) {
+            return AdminUser.fromFirestore(doc.data()!);
+          }
+          return null;
+        })
+        .handleError((e) {
+          debugPrint('Error in admin profile stream: $e');
+          return null;
+        });
   }
 
   // Create a new admin account
@@ -283,7 +292,11 @@ class AdminAuthService {
               snapshot.docs
                   .map((doc) => AdminUser.fromFirestore(doc.data()))
                   .toList(),
-        );
+        )
+        .handleError((e) {
+          debugPrint('Error in all admins stream: $e');
+          return <AdminUser>[];
+        });
   }
 
   // Delete an admin
@@ -295,3 +308,5 @@ class AdminAuthService {
     }
   }
 }
+
+

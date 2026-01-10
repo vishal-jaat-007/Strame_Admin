@@ -109,13 +109,20 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
 
   Widget _buildLiveCallsSection() {
     return StreamBuilder<QuerySnapshot>(
-      stream:
-          _firestore
-              .collection('call_requests')
-              .where('status', isEqualTo: 'ongoing')
-              .limit(3)
-              .snapshots(),
+      stream: _firestore
+          .collection('call_requests')
+          .where('status', isEqualTo: 'ongoing')
+          .limit(3)
+          .snapshots()
+          .handleError((e) {
+            if (!e.toString().contains('permission-denied')) {
+              debugPrint('Error in live calls stream: $e');
+            }
+          }),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
         if (!snapshot.hasData) {
           return _buildLoadingSection('Active Calls');
         }
@@ -176,8 +183,17 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
 
   Widget _buildLiveStreamsSection() {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('live_sessions').snapshots(),
+      stream: _firestore.collection('live_sessions').snapshots().handleError((
+        e,
+      ) {
+        if (!e.toString().contains('permission-denied')) {
+          debugPrint('Error in live streams stream: $e');
+        }
+      }),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
         if (!snapshot.hasData) {
           return _buildLoadingSection('Live Streams');
         }
@@ -556,4 +572,5 @@ class _LiveMonitoringState extends State<LiveMonitoring> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
+
 

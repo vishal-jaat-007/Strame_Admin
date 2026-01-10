@@ -25,6 +25,8 @@ class AdminTheme {
   static const Color errorRed = Color(0xFFFF3B30);
   static const Color infoBlue = Color(0xFF5A9CFF);
   static const Color accentBlue = Color(0xFF007AFF);
+  static const Color secondaryBlue = Color(0xFF5A9CFF);
+  static const Color accentGold = Color(0xFFFFD700);
   static const Color secondaryPink = Color(0xFFFF2D55);
 
   // Text colors
@@ -349,3 +351,5 @@ class AdminTheme {
     );
   }
 }
+
+

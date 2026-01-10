@@ -30,10 +30,11 @@ service cloud.firestore {
       // This allows payment transactions where coins are deducted
       allow update: if isSignedIn() && (
         isOwner(userId) ||
+        isAdmin() ||
         // Allow updates to coins and coinsUpdatedAt (payment transactions)
         (request.resource.data.keys().hasAny(['coins', 'coinsUpdatedAt']))
       );
-      allow delete: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
 
       match /following/{followedId} {
         allow read, list: if isSignedIn();
@@ -78,13 +79,13 @@ service cloud.firestore {
       // This allows payment transactions where users update creator earnings
       allow update: if isSignedIn() && (
         isOwner(creatorId) || 
+        isAdmin() ||
         // Allow updates if payment/status fields are being updated
-        // For transactions, check if these fields exist in request.resource.data (the updated document)
         (request.resource.data.keys().hasAny(['totalEarnings', 'earningsUpdatedAt', 'isBusy'])) ||
         // Allow updates to live/status fields (check if being changed)
         (resource.exists && request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLive', 'liveStartedAt', 'liveViewerCount', 'updatedAt']))
       );
-      allow delete: if isOwner(creatorId);
+      allow delete: if isOwner(creatorId) || isAdmin();
       
       // 🔥 NEW: Economic Engine - Creator Transaction History (Earnings)
       match /transactions/{transactionId} {
@@ -102,7 +103,8 @@ service cloud.firestore {
     }
 
     match /creator_requests/{requestId} {
-      allow read, list, create, update: if isSignedIn() && request.auth.uid == requestId;
+      allow read, list, get, create, update: if isSignedIn() && (request.auth.uid == requestId || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // ==========================================
@@ -352,6 +354,7 @@ service cloud.firestore {
       
       // Allow update if user is caller, creator, receiver, OR ADMIN
       allow update: if isSignedIn() && (
+        isAdmin() ||
         // Caller
         ((resource != null && resource.data.keys().hasAny(['callerId']) && resource.data.callerId == request.auth.uid) ||
          (request.resource.data.keys().hasAny(['callerId']) && request.resource.data.callerId == request.auth.uid)) ||
@@ -360,9 +363,7 @@ service cloud.firestore {
          (request.resource.data.keys().hasAny(['creatorId']) && request.resource.data.creatorId == request.auth.uid)) ||
         // Receiver
         ((resource != null && resource.data.keys().hasAny(['receiverId']) && resource.data.receiverId == request.auth.uid) ||
-         (request.resource.data.keys().hasAny(['receiverId']) && request.resource.data.receiverId == request.auth.uid)) ||
-        // Admin
-        isAdmin()
+         (request.resource.data.keys().hasAny(['receiverId']) && request.resource.data.receiverId == request.auth.uid))
       );
       
       // Delete: Caller, Creator, or Admin

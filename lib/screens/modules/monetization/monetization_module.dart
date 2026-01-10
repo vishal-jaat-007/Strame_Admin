@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../theme/admin_theme.dart';
 import '../../../services/app_config_service.dart';
 import '../../../widgets/common/glass_card.dart';
@@ -25,6 +26,7 @@ class _MonetizationModuleState extends State<MonetizationModule>
   final _commissionController = TextEditingController();
 
   bool _isSavingSettings = false;
+  Map<String, dynamic>? _lastSettings;
 
   @override
   void initState() {
@@ -50,12 +52,16 @@ class _MonetizationModuleState extends State<MonetizationModule>
     setState(() => _isSavingSettings = true);
     try {
       await _configService.updateMonetizationSettings({
-        'voiceRateUserDebit': int.parse(_voiceRateUserController.text),
-        'voiceRateCreatorCredit': int.parse(_voiceRateCreatorController.text),
-        'videoRateUserDebit': int.parse(_videoRateUserController.text),
-        'videoRateCreatorCredit': int.parse(_videoRateCreatorController.text),
-        'chatCostPerMessage': int.parse(_chatRateController.text),
-        'platformCommission': int.parse(_commissionController.text),
+        'voiceRateUserDebit': int.parse(_voiceRateUserController.text.trim()),
+        'voiceRateCreatorCredit': int.parse(
+          _voiceRateCreatorController.text.trim(),
+        ),
+        'videoRateUserDebit': int.parse(_videoRateUserController.text.trim()),
+        'videoRateCreatorCredit': int.parse(
+          _videoRateCreatorController.text.trim(),
+        ),
+        'chatCostPerMessage': int.parse(_chatRateController.text.trim()),
+        'platformCommission': int.parse(_commissionController.text.trim()),
       });
 
       if (mounted) {
@@ -94,18 +100,23 @@ class _MonetizationModuleState extends State<MonetizationModule>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Monetization & Pricing',
-                style:
-                    isMobile
-                        ? AdminTheme.headlineSmall
-                        : AdminTheme.headlineMedium,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Monetization & Pricing',
+                  style:
+                      isMobile
+                          ? AdminTheme.headlineSmall
+                          : AdminTheme.headlineMedium,
+                ),
               ),
               const SizedBox(height: AdminTheme.spacingXs),
               Text(
                 'Configure call rates, creator earnings, and coin package prices.',
                 style: AdminTheme.bodyMedium.copyWith(
                   color: AdminTheme.textSecondary,
+                  fontSize: isMobile ? 12 : 14,
                 ),
               ),
             ],
@@ -145,8 +156,8 @@ class _MonetizationModuleState extends State<MonetizationModule>
 
         final settings = snapshot.data ?? {};
 
-        // Populate controllers if not already editing
-        if (!_isSavingSettings) {
+        // Populate controllers if data changed
+        if (!mapEquals(settings, _lastSettings)) {
           _voiceRateUserController.text =
               (settings['voiceRateUserDebit'] ?? 12).toString();
           _voiceRateCreatorController.text =
@@ -159,12 +170,18 @@ class _MonetizationModuleState extends State<MonetizationModule>
               (settings['chatCostPerMessage'] ?? 2).toString();
           _commissionController.text =
               (settings['platformCommission'] ?? 50).toString();
+
+          _lastSettings = settings;
         }
 
-        final isMobile = MediaQuery.of(context).size.width < 900;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 900;
+        final isVerySmall = screenWidth < 400;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(AdminTheme.spacingLg),
+          padding: EdgeInsets.all(
+            isVerySmall ? AdminTheme.spacingMd : AdminTheme.spacingLg,
+          ),
           child: Form(
             key: _settingsFormKey,
             child: Column(
@@ -290,7 +307,7 @@ class _MonetizationModuleState extends State<MonetizationModule>
                 ],
                 const SizedBox(height: AdminTheme.spacingXl),
                 SizedBox(
-                  width: 250,
+                  width: isVerySmall ? double.infinity : 250,
                   height: 50,
                   child: ElevatedButton.icon(
                     onPressed: _isSavingSettings ? null : _saveSettings,
@@ -326,12 +343,16 @@ class _MonetizationModuleState extends State<MonetizationModule>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: AdminTheme.primaryPurple, size: 20),
-              const SizedBox(width: 8),
-              Text(title, style: AdminTheme.headlineSmall),
-            ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                Icon(icon, color: AdminTheme.primaryPurple, size: 20),
+                const SizedBox(width: 8),
+                Text(title, style: AdminTheme.headlineSmall),
+              ],
+            ),
           ),
           const Divider(height: 32, color: AdminTheme.borderColor),
           ...children.map(
@@ -362,30 +383,59 @@ class _MonetizationModuleState extends State<MonetizationModule>
       ),
       validator: (value) {
         if (value == null || value.isEmpty) return 'Value required';
-        if (int.tryParse(value) == null) return 'Must be a number';
+        if (int.tryParse(value.trim()) == null) return 'Must be a number';
         return null;
       },
     );
   }
 
   Widget _buildCoinStoreTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final isVerySmall = screenWidth < 400;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AdminTheme.spacingLg),
+      padding: EdgeInsets.all(
+        isVerySmall ? AdminTheme.spacingMd : AdminTheme.spacingLg,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Coin Packages', style: AdminTheme.headlineSmall),
-              ElevatedButton.icon(
-                onPressed: () => _showAddPackageDialog(),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add Package'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminTheme.successGreen,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Coin Packages',
+                    style:
+                        isMobile
+                            ? AdminTheme.headlineSmall
+                            : AdminTheme.headlineMedium,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
+              if (isVerySmall)
+                IconButton(
+                  onPressed: () => _showAddPackageDialog(),
+                  icon: const Icon(Icons.add_rounded),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AdminTheme.successGreen,
+                    foregroundColor: Colors.white,
+                  ),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: () => _showAddPackageDialog(),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Add Package'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminTheme.successGreen,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: AdminTheme.spacingLg),
@@ -408,9 +458,16 @@ class _MonetizationModuleState extends State<MonetizationModule>
 
               return LayoutBuilder(
                 builder: (context, constraints) {
-                  return Wrap(
-                    spacing: AdminTheme.spacingLg,
-                    runSpacing: AdminTheme.spacingLg,
+                  final screenWidth = constraints.maxWidth;
+                  final isMobile = screenWidth < 600;
+
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: isMobile ? 1 : (screenWidth < 1100 ? 2 : 3),
+                    mainAxisSpacing: AdminTheme.spacingLg,
+                    crossAxisSpacing: AdminTheme.spacingLg,
+                    childAspectRatio: isMobile ? 1.0 : 0.85,
                     children:
                         packages.map((pkg) => _buildPackageCard(pkg)).toList(),
                   );
@@ -424,10 +481,10 @@ class _MonetizationModuleState extends State<MonetizationModule>
   }
 
   Widget _buildPackageCard(Map<String, dynamic> pkg) {
-    return Container(
-      width: 280,
-      child: GlassCard(
-        padding: const EdgeInsets.all(AdminTheme.spacingLg),
+    return GlassCard(
+      padding: const EdgeInsets.all(AdminTheme.spacingLg),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
         child: Column(
           children: [
             Container(
@@ -536,9 +593,30 @@ class _MonetizationModuleState extends State<MonetizationModule>
               ElevatedButton(
                 onPressed: () {
                   _configService.upsertCoinPackage(package?['id'], {
-                    'coinAmount': int.parse(coinAmountController.text),
-                    'price': double.parse(priceController.text),
-                    'bonusAmount': int.parse(bonusController.text),
+                    'coinAmount':
+                        int.tryParse(
+                          coinAmountController.text.replaceAll(
+                            RegExp(r'[^0-9]'),
+                            '',
+                          ),
+                        ) ??
+                        0,
+                    'price':
+                        double.tryParse(
+                          priceController.text.replaceAll(
+                            RegExp(r'[^0-9.]'),
+                            '',
+                          ),
+                        ) ??
+                        0.0,
+                    'bonusAmount':
+                        int.tryParse(
+                          bonusController.text.replaceAll(
+                            RegExp(r'[^0-9]'),
+                            '',
+                          ),
+                        ) ??
+                        0,
                   });
                   Navigator.pop(context);
                 },

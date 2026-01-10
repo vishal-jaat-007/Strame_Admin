@@ -32,11 +32,65 @@ class _NotificationsModuleState extends State<NotificationsModule> {
   String _targetType = 'broadcast'; // 'broadcast' or 'specific'
   final List<AppUser> _selectedUsers = [];
 
+  // History Pagination
+  final List<Map<String, dynamic>> _history = [];
+  DocumentSnapshot? _historyLastDoc;
+  bool _historyLoading = false;
+  bool _historyHasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
     _bodyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistory({bool refresh = false}) async {
+    if (_historyLoading) return;
+    if (refresh) {
+      setState(() {
+        _history.clear();
+        _historyLastDoc = null;
+        _historyHasMore = true;
+      });
+    }
+
+    setState(() => _historyLoading = true);
+
+    try {
+      final snapshot = await _notificationService
+          .getNotificationHistoryPaginated(
+            limit: 10,
+            startAfter: _historyLastDoc,
+          );
+
+      if (snapshot.docs.isEmpty) {
+        setState(() {
+          _historyHasMore = false;
+          _historyLoading = false;
+        });
+        return;
+      }
+
+      final newLogs =
+          snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
+
+      setState(() {
+        _history.addAll(newLogs);
+        _historyLastDoc = snapshot.docs.last;
+        _historyLoading = false;
+        if (newLogs.length < 10) _historyHasMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading history: $e');
+      setState(() => _historyLoading = false);
+    }
   }
 
   Future<void> _pickAndUploadImage() async {
@@ -134,6 +188,7 @@ class _NotificationsModuleState extends State<NotificationsModule> {
             ),
           ),
         );
+        _loadHistory(refresh: true);
       }
     } catch (e) {
       if (mounted) {
@@ -162,7 +217,7 @@ class _NotificationsModuleState extends State<NotificationsModule> {
           Text('Push Notifications', style: AdminTheme.headlineMedium),
           const SizedBox(height: AdminTheme.spacingXs),
           Text(
-            'Broadcast messages to all app users.',
+            'Broadcast messages to all app users or specific individuals.',
             style: AdminTheme.bodyMedium.copyWith(
               color: AdminTheme.textSecondary,
             ),
@@ -340,137 +395,137 @@ class _NotificationsModuleState extends State<NotificationsModule> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Recent Broadcasts', style: AdminTheme.headlineSmall),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Recent Broadcasts', style: AdminTheme.headlineSmall),
+            IconButton(
+              onPressed: () => _loadHistory(refresh: true),
+              icon: const Icon(
+                Icons.refresh,
+                size: 20,
+                color: AdminTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: AdminTheme.spacingMd),
 
-        StreamBuilder<List<Map<String, dynamic>>>(
-          stream: _notificationService.getNotificationHistory(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final logs = snapshot.data ?? [];
-            if (logs.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AdminTheme.spacing2Xl),
-                  child: Text(
-                    'No history found',
-                    style: TextStyle(color: AdminTheme.textSecondary),
-                  ),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: logs.length,
-              separatorBuilder:
-                  (_, __) => const SizedBox(height: AdminTheme.spacingMd),
-              itemBuilder: (context, index) {
-                final log = logs[index];
-                final createdAt =
-                    (log['createdAt'] as Timestamp?)?.toDate() ??
-                    DateTime.now();
-
-                return GlassCard(
-                  padding: const EdgeInsets.all(AdminTheme.spacingMd),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AdminTheme.primaryPurple.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(
-                          AdminTheme.radiusSm,
-                        ),
-                      ),
-                      child: Icon(() {
-                        final title = (log['title'] ?? '').toLowerCase();
-                        if (title.contains('missed call'))
-                          return Icons.call_missed_rounded;
-                        if (title.contains('incoming call'))
-                          return Icons.call_received_rounded;
-                        if (title.contains('call')) return Icons.call_rounded;
-                        if (title.contains('welcome'))
-                          return Icons.handshake_rounded;
-                        if (log['type'] == 'broadcast' ||
-                            log['receiverId'] == 'all' ||
-                            log['target'] == 'all') {
-                          return Icons.groups_rounded;
-                        }
-                        return Icons.person_rounded;
-                      }(), color: AdminTheme.primaryPurple),
-                    ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            log['title'] ?? 'No Title',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+        if (_history.isEmpty && !_historyLoading)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AdminTheme.spacing2Xl),
+              child: Text(
+                'No history found',
+                style: TextStyle(color: AdminTheme.textSecondary),
+              ),
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _history.length + (_historyHasMore ? 1 : 0),
+            separatorBuilder:
+                (_, __) => const SizedBox(height: AdminTheme.spacingMd),
+            itemBuilder: (context, index) {
+              if (index == _history.length) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AdminTheme.spacingMd),
+                    child:
+                        _historyLoading
+                            ? const CircularProgressIndicator()
+                            : TextButton(
+                              onPressed: _loadHistory,
+                              child: const Text('Load More'),
                             ),
-                          ),
-                        ),
-                        Text(
-                          'to: ${() {
-                            final name = log['targetName'];
-                            if (name != null) return name;
-                            final id = log['receiverId'] ?? log['target'];
-                            if (id == null) return 'User';
-                            if (id == 'all') return 'All Users';
-                            if (id.toString().length > 12) return '${id.toString().substring(0, 8)}...';
-                            return id.toString();
-                          }()}',
-                          style: TextStyle(
-                            color: AdminTheme.primaryPurple.withOpacity(0.8),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          log['body'] ?? '',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: AdminTheme.textSecondary),
-                        ),
-                        if (log['summary'] != null || log['error'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            log['summary'] ?? 'Error: ${log['error']}',
-                            style: TextStyle(
-                              color:
-                                  log['error'] != null
-                                      ? AdminTheme.errorRed
-                                      : AdminTheme.successGreen.withOpacity(
-                                        0.8,
-                                      ),
-                              fontSize: 10,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('MMM d, h:mm a').format(createdAt),
-                          style: AdminTheme.labelSmall,
-                        ),
-                      ],
-                    ),
-                    trailing: _buildStatusBadge(log['status'] ?? 'pending'),
                   ),
                 );
-              },
-            );
-          },
-        ),
+              }
+
+              final log = _history[index];
+              final createdAt =
+                  (log['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+              return GlassCard(
+                padding: const EdgeInsets.all(AdminTheme.spacingMd),
+                child: ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AdminTheme.primaryPurple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+                    ),
+                    child: Icon(() {
+                      final title = (log['title'] ?? '').toLowerCase();
+                      if (title.contains('missed call'))
+                        return Icons.call_missed_rounded;
+                      if (title.contains('incoming call'))
+                        return Icons.call_received_rounded;
+                      if (title.contains('call')) return Icons.call_rounded;
+                      if (title.contains('welcome'))
+                        return Icons.handshake_rounded;
+                      if (log['type'] == 'broadcast' ||
+                          log['receiverId'] == 'all') {
+                        return Icons.groups_rounded;
+                      }
+                      return Icons.person_rounded;
+                    }(), color: AdminTheme.primaryPurple),
+                  ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          log['title'] ?? 'No Title',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'to: ${() {
+                          final name = log['targetName'];
+                          if (name != null) return name;
+                          final id = log['receiverId'] ?? log['target'];
+                          if (id == null) return 'User';
+                          if (id == 'all') return 'All Users';
+                          return 'User';
+                        }()}',
+                        style: TextStyle(
+                          color: AdminTheme.primaryPurple.withOpacity(0.8),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        log['body'] ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AdminTheme.textSecondary),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat('MMM d, h:mm a').format(createdAt),
+                        style: AdminTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                  trailing: _buildStatusBadge(log['status'] ?? 'pending'),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -741,3 +796,5 @@ class _NotificationsModuleState extends State<NotificationsModule> {
     );
   }
 }
+
+

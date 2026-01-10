@@ -40,18 +40,20 @@ class NotificationService {
     await _firestore.collection('notification_requests').add(data);
   }
 
-  // Get list of previous notification requests
-  Stream<List<Map<String, dynamic>>> getNotificationHistory() {
-    return _firestore
+  // Get list of previous notification requests with pagination
+  Future<QuerySnapshot<Map<String, dynamic>>> getNotificationHistoryPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+  }) {
+    Query<Map<String, dynamic>> query = _firestore
         .collection('notification_requests')
         .orderBy('createdAt', descending: true)
-        .limit(20)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs
-                  .map((doc) => {...doc.data(), 'id': doc.id})
-                  .toList(),
-        );
+        .limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    return query.get();
   }
 }

@@ -451,10 +451,53 @@ class AdminHeader extends StatelessWidget {
         onSelected: (value) {
           debugPrint('🔘 [AdminHeader] Menu item selected: $value');
           if (value == 'logout') {
-            authProvider.signOut();
+            _showLogoutConfirmation(context, authProvider);
           }
         },
       ),
+    );
+  }
+
+  void _showLogoutConfirmation(
+    BuildContext context,
+    AdminAuthProvider authProvider,
+  ) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AdminTheme.cardDark,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AdminTheme.radiusMd),
+            ),
+            title: const Text(
+              'Sign Out',
+              style: TextStyle(color: AdminTheme.textPrimary),
+            ),
+            content: const Text(
+              'Are you sure you want to sign out from the Admin Panel?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  authProvider.signOut();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminTheme.errorRed,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Sign Out'),
+              ),
+            ],
+          ),
     );
   }
 }

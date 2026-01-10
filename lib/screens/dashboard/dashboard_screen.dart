@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
 import '../../theme/admin_theme.dart';
@@ -7,6 +8,7 @@ import '../../widgets/layout/admin_sidebar.dart';
 import '../../widgets/layout/admin_header.dart';
 import '../../widgets/layout/admin_content.dart';
 import '../../models/navigation_item.dart';
+import '../../services/app_config_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,6 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isMobileSidebarOpen = false;
 
   NavigationItem _selectedItem = NavigationItem.dashboard;
+  final AppConfigService _configService = AppConfigService();
 
   @override
   void initState() {
@@ -112,6 +115,71 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Expanded(
                       child: Column(
                         children: [
+                          // Maintenance Banner
+                          StreamBuilder<Map<String, dynamic>>(
+                            stream: _configService.getSystemSettings(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                debugPrint(
+                                  'Warning: Dashboard maintenance stream error: ${snapshot.error}',
+                                );
+                                return const SizedBox.shrink();
+                              }
+                              final settings = snapshot.data;
+                              final isMaintenance =
+                                  settings?['maintenanceMode'] ?? false;
+
+                              if (!isMaintenance)
+                                return const SizedBox.shrink();
+
+                              return Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                  horizontal: 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AdminTheme.warningOrange.withOpacity(
+                                    0.9,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.construction_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'MAINTENANCE MODE ACTIVE: Platform access is restricted for regular users.',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Colors.white.withOpacity(0.8),
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
                           // Header
                           AdminHeader(
                             selectedItem: _selectedItem,
@@ -169,3 +237,5 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 }
+
+

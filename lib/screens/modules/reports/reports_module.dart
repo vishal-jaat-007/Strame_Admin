@@ -83,18 +83,20 @@ class _ReportsModuleState extends State<ReportsModule> {
       final pendingCreatorsCount =
           creatorsDocs.where((doc) => doc.data()['isApproved'] == false).length;
 
-      setState(() {
-        _stats = {
-          'totalRevenue': totalRev,
-          'todayRevenue': todayRev,
-          'totalCalls': callCount,
-          'totalUsers': usersSnapshot.docs.length,
-          'totalCreators': approvedCreatorsCount,
-          'pendingCreators': pendingCreatorsCount,
-          'pendingWithdrawals': withdrawalsSnapshot.docs.length,
-        };
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _stats = {
+            'totalRevenue': totalRev,
+            'todayRevenue': todayRev,
+            'totalCalls': callCount,
+            'totalUsers': usersSnapshot.docs.length,
+            'totalCreators': approvedCreatorsCount,
+            'pendingCreators': pendingCreatorsCount,
+            'pendingWithdrawals': withdrawalsSnapshot.docs.length,
+          };
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error fetching report: $e');
       if (mounted) setState(() => _isLoading = false);
@@ -187,170 +189,169 @@ class _ReportsModuleState extends State<ReportsModule> {
     final isTablet = screenWidth >= 700 && screenWidth < 1100;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(
-        isMobile ? AdminTheme.spacingMd : AdminTheme.spacingLg,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isMobile)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Analytics Reports', style: AdminTheme.headlineMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'Real-time platform performance overview',
-                  style: AdminTheme.bodySmall.copyWith(
-                    color: AdminTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AdminTheme.spacingLg),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _handleExport,
-                    icon: const Icon(Icons.download_rounded),
-                    label: const Text('Export Full Report'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminTheme.primaryPurple,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: EdgeInsets.all(
+          screenWidth < 400 ? AdminTheme.spacingSm : AdminTheme.spacingLg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width:
+                    screenWidth -
+                    (screenWidth < 400
+                        ? AdminTheme.spacingSm * 2
+                        : AdminTheme.spacingLg * 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Analytics Reports', style: AdminTheme.headlineMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Real-time platform performance overview',
-                      style: AdminTheme.bodySmall.copyWith(
-                        color: AdminTheme.textSecondary,
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Analytics Reports',
+                            style: AdminTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Real-time platform performance overview',
+                            style: AdminTheme.bodySmall.copyWith(
+                              color: AdminTheme.textSecondary,
+                              fontSize: isMobile ? 10 : 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _handleExport,
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label:
+                          isMobile
+                              ? const Text('Export')
+                              : const Text('Export Full Report'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminTheme.primaryPurple,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 12 : 20,
+                          vertical: isMobile ? 10 : 12,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                ElevatedButton.icon(
-                  onPressed: _handleExport,
-                  icon: const Icon(Icons.download_rounded),
-                  label: const Text('Export Full Report'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminTheme.primaryPurple,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          const SizedBox(height: AdminTheme.spacingXl),
+            const SizedBox(height: AdminTheme.spacingXl),
 
-          // Stats Grid
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
-            childAspectRatio: isMobile ? 2.2 : (isTablet ? 1.4 : 1.3),
-            crossAxisSpacing: AdminTheme.spacingLg,
-            mainAxisSpacing: AdminTheme.spacingLg,
-            children: [
-              _buildReportStatCard(
-                'Total Revenue',
-                '₹${_stats['totalRevenue'].toStringAsFixed(2)}',
-                Icons.payments_rounded,
-                AdminTheme.successGreen,
-              ),
-              _buildReportStatCard(
-                'Today Revenue',
-                '₹${_stats['todayRevenue'].toStringAsFixed(2)}',
-                Icons.trending_up,
-                AdminTheme.electricBlue,
-              ),
-              _buildReportStatCard(
-                'Total Interactions',
-                '${_stats['totalCalls']}',
-                Icons.call_rounded,
-                AdminTheme.neonMagenta,
-              ),
-              _buildReportStatCard(
-                'Platform Users',
-                '${_stats['totalUsers']}',
-                Icons.people_rounded,
-                AdminTheme.infoBlue,
-              ),
-              _buildReportStatCard(
-                'Active Creators',
-                '${_stats['totalCreators']}',
-                Icons.verified_user_rounded,
-                AdminTheme.warningOrange,
-              ),
-              _buildReportStatCard(
-                'Approval Queue',
-                '${_stats['pendingCreators']}',
-                Icons.pending_actions_rounded,
-                AdminTheme.neonMagenta,
-              ),
-              _buildReportStatCard(
-                'Pending Payouts',
-                '${_stats['pendingWithdrawals']}',
-                Icons.account_balance_wallet_rounded,
-                AdminTheme.errorRed,
-              ),
-              _buildReportStatCard(
-                'Internal Stats',
-                '${_stats['totalCalls']}',
-                Icons.analytics_rounded,
-                AdminTheme.primaryPurple,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: AdminTheme.spacingXl),
-
-          // Detailed Table or Chart
-          GlassCard(
-            padding: const EdgeInsets.all(AdminTheme.spacingLg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Stats Grid
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount:
+                  isMobile ? (screenWidth < 500 ? 1 : 2) : (isTablet ? 2 : 3),
+              childAspectRatio:
+                  isMobile
+                      ? (screenWidth < 500 ? 2.0 : 1.5)
+                      : (isTablet ? 1.4 : 1.3),
+              crossAxisSpacing: AdminTheme.spacingLg,
+              mainAxisSpacing: AdminTheme.spacingLg,
               children: [
-                Text('Performance Overview', style: AdminTheme.headlineSmall),
-                const SizedBox(height: 20),
-                _buildListRow(
-                  'Active Users',
-                  '${_stats['totalUsers']}',
-                  0.85,
-                  AdminTheme.infoBlue,
-                ),
-                _buildListRow(
-                  'Creator Growth',
-                  '${(_stats['totalCreators'] / 10).toStringAsFixed(1)}%',
-                  0.65,
-                  AdminTheme.warningOrange,
-                ),
-                _buildListRow(
-                  'Revenue Conversion',
-                  '₹${(_stats['totalRevenue'] / 100).toStringAsFixed(2)}/user',
-                  0.45,
+                _buildReportStatCard(
+                  'Total Revenue',
+                  '₹${_stats['totalRevenue'].toStringAsFixed(2)}',
+                  Icons.payments_rounded,
                   AdminTheme.successGreen,
                 ),
-                _buildListRow(
-                  'Payout Efficiency',
-                  '98%',
-                  0.98,
+                _buildReportStatCard(
+                  'Today Revenue',
+                  '₹${_stats['todayRevenue'].toStringAsFixed(2)}',
+                  Icons.trending_up,
+                  AdminTheme.electricBlue,
+                ),
+                _buildReportStatCard(
+                  'Total Interactions',
+                  '${_stats['totalCalls']}',
+                  Icons.call_rounded,
+                  AdminTheme.neonMagenta,
+                ),
+                _buildReportStatCard(
+                  'Platform Users',
+                  '${_stats['totalUsers']}',
+                  Icons.people_rounded,
+                  AdminTheme.infoBlue,
+                ),
+                _buildReportStatCard(
+                  'Active Creators',
+                  '${_stats['totalCreators']}',
+                  Icons.verified_user_rounded,
+                  AdminTheme.warningOrange,
+                ),
+                _buildReportStatCard(
+                  'Approval Queue',
+                  '${_stats['pendingCreators']}',
+                  Icons.pending_actions_rounded,
+                  AdminTheme.neonMagenta,
+                ),
+                _buildReportStatCard(
+                  'Pending Payouts',
+                  '${_stats['pendingWithdrawals']}',
+                  Icons.account_balance_wallet_rounded,
+                  AdminTheme.errorRed,
+                ),
+                _buildReportStatCard(
+                  'Internal Stats',
+                  '${_stats['totalCalls']}',
+                  Icons.analytics_rounded,
                   AdminTheme.primaryPurple,
                 ),
               ],
             ),
-          ),
-        ],
+
+            const SizedBox(height: AdminTheme.spacingXl),
+
+            // Detailed Table or Chart
+            GlassCard(
+              padding: const EdgeInsets.all(AdminTheme.spacingLg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Performance Overview', style: AdminTheme.headlineSmall),
+                  const SizedBox(height: 20),
+                  _buildListRow(
+                    'Active Users',
+                    '${_stats['totalUsers']}',
+                    0.85,
+                    AdminTheme.infoBlue,
+                  ),
+                  _buildListRow(
+                    'Creator Growth',
+                    '${(_stats['totalCreators'] / 10).toStringAsFixed(1)}%',
+                    0.65,
+                    AdminTheme.warningOrange,
+                  ),
+                  _buildListRow(
+                    'Revenue Conversion',
+                    '₹${(_stats['totalRevenue'] / 100).toStringAsFixed(2)}/user',
+                    0.45,
+                    AdminTheme.successGreen,
+                  ),
+                  _buildListRow(
+                    'Payout Efficiency',
+                    '98%',
+                    0.98,
+                    AdminTheme.primaryPurple,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -406,12 +407,25 @@ class _ReportsModuleState extends State<ReportsModule> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: AdminTheme.bodyMedium),
-              Text(
-                value,
-                style: AdminTheme.bodyLarge.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
+              Flexible(
+                child: Text(
+                  label,
+                  style: AdminTheme.bodyMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    value,
+                    style: AdminTheme.bodyLarge.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
                 ),
               ),
             ],

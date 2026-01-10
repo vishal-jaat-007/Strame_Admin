@@ -153,13 +153,25 @@ class AdminAuthProvider extends ChangeNotifier {
   // Sign out
   Future<void> signOut() async {
     try {
+      print('👋 [AdminAuthProvider] Sign out initiated...');
       _isLoading = true;
       notifyListeners();
 
-      await _authService.signOut();
+      // Cancel subscriptions first
+      await _adminSubscription?.cancel();
+      _adminSubscription = null;
+
+      // Clear state BEFORE Firebase sign out to trigger UI change immediately
+      // This helps in disposing Firestore listeners before token is revoked
       _currentAdmin = null;
       _errorMessage = null;
+      notifyListeners();
+
+      print('🔐 [AdminAuthProvider] Calling Firebase sign out...');
+      await _authService.signOut();
+      print('✅ [AdminAuthProvider] Firebase sign out successful');
     } catch (e) {
+      print('❌ [AdminAuthProvider] Sign out error: $e');
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;

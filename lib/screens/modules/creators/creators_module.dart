@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../admin/pending_approvals_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../theme/admin_theme.dart';
 import '../../../../services/creator_service.dart';
 import '../../../../models/creator.dart';
@@ -22,277 +22,171 @@ class _CreatorsModuleState extends State<CreatorsModule> {
   String _statusFilter = 'All'; // All, Active, Pending, Blocked
   String _categoryFilter = 'All';
 
+  final List<Creator> _creators = [];
+  DocumentSnapshot? _lastDocument;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
+
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Creator>>(
-      stream: _creatorService.getAllCreators(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: const TextStyle(color: AdminTheme.errorRed),
-            ),
-          );
-        }
+  void initState() {
+    super.initState();
+    _loadCreators();
+    _scrollController.addListener(_scrollListener);
+  }
 
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AdminTheme.primaryPurple,
-              ),
-            ),
-          );
-        }
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-        var creators =
-            snapshot.data!
-                .where((c) => c.displayName.isNotEmpty && c.uid.isNotEmpty)
-                .toList();
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        _hasMore) {
+      _loadCreators();
+    }
+  }
 
-        // Sort by createdAt descending (client-side)
-        creators.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  Future<void> _loadCreators({bool refresh = false}) async {
+    if (_isLoading) return;
+    if (refresh) {
+      _creators.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    }
 
-        // Apply filters
-        if (_searchQuery.isNotEmpty) {
-          creators =
-              creators.where((creator) {
-                final query = _searchQuery.toLowerCase();
-                return creator.displayName.toLowerCase().contains(query) ||
-                    creator.category.toLowerCase().contains(query);
-              }).toList();
-        }
+    setState(() => _isLoading = true);
 
-        if (_statusFilter != 'All') {
-          creators =
-              creators.where((creator) {
-                if (_statusFilter == 'Blocked') return creator.isBlocked;
-                if (_statusFilter == 'Active')
-                  return creator.isApproved && !creator.isBlocked;
-                if (_statusFilter == 'Pending') return !creator.isApproved;
-                return true;
-              }).toList();
-        }
+    try {
+      final snapshot = await _creatorService.getCreatorsPaginated(
+        limit: 20,
+        startAfter: _lastDocument,
+        isApproved:
+            _statusFilter == 'Pending'
+                ? false
+                : (_statusFilter == 'Active' ? true : null),
+      );
 
-        if (_categoryFilter != 'All') {
-          creators =
-              creators
-                  .where((creator) => creator.category == _categoryFilter)
-                  .toList();
-        }
+      if (snapshot.docs.isEmpty) {
+        setState(() {
+          _hasMore = false;
+          _isLoading = false;
+        });
+        return;
+      }
 
-        // Calculate stats
-        final totalCreators = creators.length;
-        final onlineCreators = creators.where((c) => c.isOnline).length;
-        final pendingCreators = creators.where((c) => !c.isApproved).length;
-        final blockedCreators = creators.where((c) => c.isBlocked).length;
+      final newCreators =
+          snapshot.docs
+              .map(
+                (doc) =>
+                    Creator.fromFirestore(doc.data() as Map<String, dynamic>),
+              )
+              .toList();
 
-        // Extract unique categories for filter
-        final categories = [
-          'All',
-          ...{...creators.map((c) => c.category).where((c) => c.isNotEmpty)},
-        ];
-
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Text(
-                'Creator Management',
-                style: AdminTheme.headlineLarge.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AdminTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AdminTheme.spacingLg),
-
-              // Stats Cards
-              _buildStatsCards(
-                context,
-                totalCreators,
-                onlineCreators,
-                pendingCreators,
-                blockedCreators,
-              ),
-
-              const SizedBox(height: AdminTheme.spacingLg),
-
-              // Search & Filter
-              _buildToolbar(context, categories),
-
-              const SizedBox(height: AdminTheme.spacingMd),
-
-              // Creator List
-              creators.isEmpty
-                  ? _buildEmptyState()
-                  : _buildCreatorList(context, creators),
-            ],
+      setState(() {
+        _creators.addAll(newCreators);
+        _lastDocument = snapshot.docs.last;
+        _isLoading = false;
+        if (newCreators.length < 20) _hasMore = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading creators: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading creators: $e'),
+            backgroundColor: AdminTheme.errorRed,
           ),
         );
-      },
-    );
+      }
+      setState(() => _isLoading = false);
+    }
   }
 
-  Widget _buildStatsCards(
-    BuildContext context,
-    int total,
-    int online,
-    int pending,
-    int blocked,
-  ) {
-    final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
+  @override
+  Widget build(BuildContext context) {
+    // Client-side filtering for search and specific status/category
+    var filteredCreators =
+        _creators.where((c) {
+          // Hide empty/anonymous profiles that have no data (clutter)
+          if (c.displayName == 'Anonymous' && c.category.isEmpty) return false;
+          return true;
+        }).toList();
+    if (_searchQuery.isNotEmpty) {
+      filteredCreators =
+          filteredCreators.where((c) {
+            final query = _searchQuery.toLowerCase();
+            return c.displayName.toLowerCase().contains(query) ||
+                c.category.toLowerCase().contains(query);
+          }).toList();
+    }
 
-    final cards = [
-      _buildStatCard(
-        'Total Creators',
-        total.toString(),
-        Icons.star,
-        AdminTheme.primaryPurple,
-      ),
-      _buildStatCard(
-        'Online Creators',
-        online.toString(),
-        Icons.fiber_manual_record,
-        AdminTheme.successGreen,
-      ),
-      _buildStatCard(
-        'Pending Approval',
-        pending.toString(),
-        Icons.pending_actions,
-        AdminTheme.warningYellow,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => const Scaffold(
-                    backgroundColor: AdminTheme.backgroundPrimary,
-                    body: SafeArea(child: PendingApprovalsScreen()),
-                  ),
-            ),
-          );
-        },
-      ),
-      _buildStatCard(
-        'Blocked',
-        blocked.toString(),
-        Icons.block,
-        AdminTheme.errorRed,
-      ),
+    if (_categoryFilter != 'All') {
+      filteredCreators =
+          filteredCreators.where((c) => c.category == _categoryFilter).toList();
+    }
+
+    if (_statusFilter == 'Blocked') {
+      filteredCreators = filteredCreators.where((c) => c.isBlocked).toList();
+    }
+
+    final categories = [
+      'All',
+      ...{..._creators.map((c) => c.category).where((c) => c.isNotEmpty)},
     ];
 
-    if (isMobile) {
-      return SizedBox(
-        height: 150, // Increased height to prevent vertical overflow
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          itemCount: cards.length,
-          separatorBuilder:
-              (context, index) => const SizedBox(width: AdminTheme.spacingMd),
-          itemBuilder:
-              (context, index) => SizedBox(width: 170, child: cards[index]),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Text(
+          'Creator Management',
+          style: AdminTheme.headlineLarge.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AdminTheme.textPrimary,
+          ),
         ),
-      );
-    }
+        const SizedBox(height: AdminTheme.spacingLg),
 
-    // Tablet: Use 2 columns if width is medium
-    final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth < 1100) {
-      return GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        childAspectRatio: 1.9, // Reduced from 2.2 to make cards taller
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        children: cards,
-      );
-    }
+        // Search & Filter
+        _buildToolbar(context, categories),
 
-    // Desktop: Row with IntrinsicHeight to ensure all cards are same height
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children:
-            cards
-                .map(
-                  (card) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: card,
-                    ),
-                  ),
-                )
-                .toList(),
-      ),
-    );
-  }
+        const SizedBox(height: AdminTheme.spacingMd),
 
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassCard(
-        padding: const EdgeInsets.all(AdminTheme.spacingMd),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: color, size: 24),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    shape: BoxShape.circle,
+        // Creator List
+        Expanded(
+          child:
+              filteredCreators.isEmpty && !_isLoading
+                  ? _buildEmptyState()
+                  : ListView(
+                    controller: _scrollController,
+                    children: [
+                      _buildCreatorList(context, filteredCreators),
+
+                      if (_isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AdminTheme.spacingMd),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+
+                      if (_hasMore && !_isLoading)
+                        Center(
+                          child: TextButton(
+                            onPressed: _loadCreators,
+                            child: const Text('Load More'),
+                          ),
+                        ),
+                      const SizedBox(height: 100),
+                    ],
                   ),
-                  child: Icon(Icons.arrow_forward, color: color, size: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    color: AdminTheme.textPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    height: 1.1,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: AdminTheme.textSecondary,
-                  fontSize: 12,
-                ),
-                maxLines: 1,
-              ),
-            ),
-          ],
         ),
-      ),
+      ],
     );
   }
 
@@ -307,7 +201,10 @@ class _CreatorsModuleState extends State<CreatorsModule> {
             width: 300,
             child: TextField(
               style: const TextStyle(color: AdminTheme.textPrimary),
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (value) {
+                _searchQuery = value;
+                setState(() {});
+              },
               decoration: InputDecoration(
                 hintText: 'Search creators...',
                 hintStyle: const TextStyle(color: AdminTheme.textTertiary),
@@ -352,7 +249,10 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                         child: Text(status),
                       );
                     }).toList(),
-                onChanged: (value) => setState(() => _statusFilter = value!),
+                onChanged: (value) {
+                  setState(() => _statusFilter = value!);
+                  _loadCreators(refresh: true);
+                },
               ),
             ),
           ),
@@ -370,15 +270,12 @@ class _CreatorsModuleState extends State<CreatorsModule> {
                 dropdownColor: AdminTheme.cardDark,
                 style: const TextStyle(color: AdminTheme.textPrimary),
                 icon: const Icon(
-                  Icons.category,
+                  Icons.category_rounded,
                   color: AdminTheme.textSecondary,
                 ),
                 items:
                     categories.map((cat) {
-                      return DropdownMenuItem(
-                        value: cat,
-                        child: Text(cat.isEmpty ? 'Uncategorized' : cat),
-                      );
+                      return DropdownMenuItem(value: cat, child: Text(cat));
                     }).toList(),
                 onChanged: (value) => setState(() => _categoryFilter = value!),
               ),
@@ -389,8 +286,29 @@ class _CreatorsModuleState extends State<CreatorsModule> {
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.person_off_rounded,
+            size: 64,
+            color: AdminTheme.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: AdminTheme.spacingMd),
+          Text(
+            'No creators found',
+            style: AdminTheme.headlineSmall.copyWith(
+              color: AdminTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCreatorList(BuildContext context, List<Creator> creators) {
-    final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = app_utils.AppResponsiveUtils.isMobile(context);
 
     if (isMobile) {
@@ -412,32 +330,61 @@ class _CreatorsModuleState extends State<CreatorsModule> {
             minWidth: MediaQuery.of(context).size.width - 64,
           ),
           child: DataTable(
-            headingRowColor: MaterialStateProperty.all(
+            headingRowColor: WidgetStateProperty.all(
               AdminTheme.backgroundSecondary.withOpacity(0.5),
             ),
-            dataRowColor: MaterialStateProperty.all(Colors.transparent),
+            dataRowColor: WidgetStateProperty.all(Colors.transparent),
             dividerThickness: 0.5,
-            horizontalMargin: isMobile ? 8 : AdminTheme.spacingLg,
-            columnSpacing: screenWidth < 1000 ? 12 : AdminTheme.spacingLg,
             columns: const [
-              DataColumn(label: Text('Creator', style: _headerStyle)),
-              DataColumn(label: Text('Category', style: _headerStyle)),
-              DataColumn(label: Text('Status', style: _headerStyle)),
-              DataColumn(label: Text('Earnings', style: _headerStyle)),
-              DataColumn(label: Text('Joined', style: _headerStyle)),
-              DataColumn(label: Text('Actions', style: _headerStyle)),
+              DataColumn(
+                label: Text(
+                  'Creator',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Category',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Earnings',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Calls/Mins',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Rating',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Status',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Actions',
+                  style: TextStyle(color: AdminTheme.textSecondary),
+                ),
+              ),
             ],
-            rows: creators.map((creator) => _buildDataRow(creator)).toList(),
+            rows: creators.map((c) => _buildDataRow(c)).toList(),
           ),
         ),
       ),
     );
   }
-
-  static const _headerStyle = TextStyle(
-    color: AdminTheme.textSecondary,
-    fontWeight: FontWeight.bold,
-  );
 
   DataRow _buildDataRow(Creator creator) {
     return DataRow(
@@ -445,78 +392,43 @@ class _CreatorsModuleState extends State<CreatorsModule> {
         DataCell(
           Row(
             children: [
-              Stack(
-                children: [
-                  UserAvatar(
-                    photoUrl: creator.photoUrl,
-                    name: creator.displayName,
-                    radius: 16,
-                  ),
-                  if (creator.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: AdminTheme.successGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AdminTheme.cardDark,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              UserAvatar(
+                photoUrl: creator.photoUrl,
+                name: creator.displayName,
+                radius: 16,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      creator.displayName,
-                      style: const TextStyle(
-                        color: AdminTheme.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (creator.isFeatured)
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AdminTheme.accentBlue.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: const Text(
-                          'FEATURED',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: AdminTheme.accentBlue,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              const SizedBox(width: 8),
+              Text(
+                creator.displayName,
+                style: const TextStyle(color: AdminTheme.textPrimary),
               ),
+              if (creator.isVerified) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.verified, color: Colors.blue, size: 16),
+              ],
             ],
           ),
         ),
         DataCell(
-          Text(
-            creator.category,
-            style: const TextStyle(color: AdminTheme.textSecondary),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                creator.category.isNotEmpty ? creator.category : 'N/A',
+                style: const TextStyle(color: AdminTheme.textSecondary),
+              ),
+              if (creator.displayName == 'Anonymous' && creator.uid.isNotEmpty)
+                Text(
+                  'ID: ${creator.uid.length > 6 ? creator.uid.substring(0, 6) : creator.uid}...',
+                  style: const TextStyle(
+                    color: AdminTheme.textTertiary,
+                    fontSize: 10,
+                  ),
+                ),
+            ],
           ),
         ),
-        DataCell(_buildStatusBadge(creator)),
         DataCell(
           Text(
             '\$${creator.totalEarnings.toStringAsFixed(2)}',
@@ -525,75 +437,56 @@ class _CreatorsModuleState extends State<CreatorsModule> {
         ),
         DataCell(
           Text(
-            DateFormat('MMM d, y').format(creator.createdAt),
-            style: const TextStyle(color: AdminTheme.textSecondary),
+            '${creator.totalCalls}/${creator.totalLiveMinutes}m',
+            style: const TextStyle(color: AdminTheme.textTertiary),
           ),
         ),
-        DataCell(_buildActions(creator)),
-      ],
-    );
-  }
-
-  Widget _buildStatusBadge(Creator creator) {
-    Color color;
-    String text;
-
-    if (creator.isBlocked) {
-      color = AdminTheme.errorRed;
-      text = 'BLOCKED';
-    } else if (!creator.isApproved) {
-      color = AdminTheme.warningYellow;
-      text = 'PENDING';
-    } else if (creator.isOnline) {
-      color = AdminTheme.successGreen;
-      text = 'ONLINE';
-    } else {
-      color = AdminTheme.textTertiary;
-      text = 'OFFLINE';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActions(Creator creator) {
-    return Row(
-      children: [
-        IconButton(
-          icon: Icon(
-            creator.isBlocked ? Icons.lock_open : Icons.block,
-            color:
-                creator.isBlocked
-                    ? AdminTheme.successGreen
-                    : AdminTheme.errorRed,
-            size: 20,
+        DataCell(
+          Row(
+            children: [
+              const Icon(Icons.star, color: Colors.amber, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                creator.rating.toStringAsFixed(1),
+                style: const TextStyle(color: AdminTheme.textPrimary),
+              ),
+            ],
           ),
-          tooltip: creator.isBlocked ? 'Unblock' : 'Block',
-          onPressed: () => _toggleBlockStatus(creator),
         ),
-        if (!creator.isApproved)
-          IconButton(
-            icon: const Icon(
-              Icons.check_circle,
-              color: AdminTheme.successGreen,
-              size: 20,
-            ),
-            tooltip: 'Approve',
-            onPressed: () => _approveCreator(creator),
+        DataCell(_buildStatusBadge(creator)),
+        DataCell(
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, color: AdminTheme.textSecondary),
+                onPressed: () => _showEditCreatorDialog(creator),
+                tooltip: 'Edit Settings',
+              ),
+              if (!creator.isApproved)
+                IconButton(
+                  icon: const Icon(
+                    Icons.check_circle_outline,
+                    color: AdminTheme.successGreen,
+                  ),
+                  onPressed: () => _approveCreator(creator),
+                  tooltip: 'Approve',
+                ),
+              IconButton(
+                icon: Icon(
+                  creator.isBlocked
+                      ? Icons.lock_open_rounded
+                      : Icons.block_flipped,
+                  color:
+                      creator.isBlocked
+                          ? AdminTheme.successGreen
+                          : AdminTheme.errorRed,
+                ),
+                onPressed: () => _toggleBlockStatus(creator),
+                tooltip: creator.isBlocked ? 'Unblock' : 'Block',
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -605,181 +498,113 @@ class _CreatorsModuleState extends State<CreatorsModule> {
         children: [
           Row(
             children: [
-              Stack(
-                children: [
-                  UserAvatar(
-                    photoUrl: creator.photoUrl,
-                    name: creator.displayName,
-                    radius: 24,
-                    fontSize: 18,
-                  ),
-                  if (creator.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: AdminTheme.successGreen,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AdminTheme.cardDark,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              UserAvatar(
+                photoUrl: creator.photoUrl,
+                name: creator.displayName,
+                radius: 24,
               ),
               const SizedBox(width: AdminTheme.spacingMd),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      creator.displayName,
-                      style: const TextStyle(
-                        color: AdminTheme.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            creator.displayName,
+                            style: AdminTheme.headlineSmall.copyWith(
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (creator.isVerified) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            color: Colors.blue,
+                            size: 16,
+                          ),
+                        ],
+                      ],
                     ),
                     Text(
                       creator.category,
-                      style: const TextStyle(
+                      style: AdminTheme.bodySmall.copyWith(
                         color: AdminTheme.textSecondary,
-                        fontSize: 11,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
               _buildStatusBadge(creator),
             ],
           ),
-          const SizedBox(height: AdminTheme.spacingMd),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 8,
-            runSpacing: 8,
+          const Divider(height: AdminTheme.spacingLg, thickness: 0.5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Earnings',
-                    style: TextStyle(
-                      color: AdminTheme.textTertiary,
-                      fontSize: 10,
-                    ),
-                  ),
-                  Text(
-                    '\$${creator.totalEarnings.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: AdminTheme.successGreen,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+              Text(
+                '\$${creator.totalEarnings.toStringAsFixed(0)} | ${creator.totalCalls} calls',
+                style: const TextStyle(
+                  color: AdminTheme.textTertiary,
+                  fontSize: 13,
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
                 children: [
-                  const Text(
-                    'Joined',
-                    style: TextStyle(
-                      color: AdminTheme.textTertiary,
-                      fontSize: 10,
+                  IconButton(
+                    icon: const Icon(
+                      Icons.edit,
+                      color: AdminTheme.textSecondary,
                     ),
+                    onPressed: () => _showEditCreatorDialog(creator),
                   ),
-                  Text(
-                    DateFormat('MMM d, y').format(creator.createdAt),
-                    style: const TextStyle(
-                      color: AdminTheme.textPrimary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (!creator.isApproved || !creator.isBlocked)
-            Padding(
-              padding: const EdgeInsets.only(top: AdminTheme.spacingSm),
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 4,
-                children: [
                   if (!creator.isApproved)
-                    TextButton.icon(
-                      onPressed: () => _approveCreator(creator),
+                    IconButton(
                       icon: const Icon(
-                        Icons.check,
+                        Icons.check_circle,
                         color: AdminTheme.successGreen,
-                        size: 14,
                       ),
-                      label: const Text(
-                        'Approve',
-                        style: TextStyle(
-                          color: AdminTheme.successGreen,
-                          fontSize: 11,
-                        ),
-                      ),
+                      onPressed: () => _approveCreator(creator),
                     ),
-                  TextButton.icon(
-                    onPressed: () => _toggleBlockStatus(creator),
+                  IconButton(
                     icon: Icon(
-                      creator.isBlocked ? Icons.lock_open : Icons.block,
+                      creator.isBlocked
+                          ? Icons.lock_open_rounded
+                          : Icons.block_flipped,
                       color:
                           creator.isBlocked
                               ? AdminTheme.successGreen
                               : AdminTheme.errorRed,
-                      size: 14,
                     ),
-                    label: Text(
-                      creator.isBlocked ? 'Unblock' : 'Block',
-                      style: TextStyle(
-                        color:
-                            creator.isBlocked
-                                ? AdminTheme.successGreen
-                                : AdminTheme.errorRed,
-                        fontSize: 11,
-                      ),
-                    ),
+                    onPressed: () => _toggleBlockStatus(creator),
                   ),
                 ],
               ),
-            ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.group_off,
-            size: 64,
-            color: AdminTheme.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: AdminTheme.spacingMd),
-          Text(
-            'No creators found',
-            style: AdminTheme.headlineSmall.copyWith(
-              color: AdminTheme.textSecondary,
-            ),
-          ),
-        ],
+  Widget _buildStatusBadge(Creator creator) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: creator.statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AdminTheme.radiusSm),
+        border: Border.all(color: creator.statusColor.withOpacity(0.3)),
+      ),
+      child: Text(
+        creator.statusText.toUpperCase(),
+        style: TextStyle(
+          color: creator.statusColor,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -820,10 +645,37 @@ class _CreatorsModuleState extends State<CreatorsModule> {
     );
 
     if (confirm == true) {
-      if (creator.isBlocked) {
-        await _creatorService.unblockCreator(creator.uid);
-      } else {
-        await _creatorService.blockCreator(creator.uid);
+      try {
+        if (creator.isBlocked) {
+          await _creatorService.unblockCreator(creator.uid);
+        } else {
+          await _creatorService.blockCreator(creator.uid);
+        }
+        if (mounted) {
+          setState(() {
+            final index = _creators.indexWhere((c) => c.uid == creator.uid);
+            if (index != -1) {
+              _creators[index] = creator.copyWith(
+                isBlocked: !creator.isBlocked,
+              );
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Creator ${action}ed successfully'),
+              backgroundColor: AdminTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AdminTheme.errorRed,
+            ),
+          );
+        }
       }
     }
   }
@@ -835,11 +687,11 @@ class _CreatorsModuleState extends State<CreatorsModule> {
           (context) => AlertDialog(
             backgroundColor: AdminTheme.cardDark,
             title: const Text(
-              'Confirm Approval',
+              'Approve Creator',
               style: TextStyle(color: AdminTheme.textPrimary),
             ),
             content: Text(
-              'Approve ${creator.displayName} as a creator?',
+              'Are you sure you want to approve ${creator.displayName}?',
               style: const TextStyle(color: AdminTheme.textSecondary),
             ),
             actions: [
@@ -860,7 +712,201 @@ class _CreatorsModuleState extends State<CreatorsModule> {
     );
 
     if (confirm == true) {
-      await _creatorService.approveCreator(creator.uid);
+      try {
+        await _creatorService.approveCreator(creator.uid);
+        if (mounted) {
+          setState(() {
+            final index = _creators.indexWhere((c) => c.uid == creator.uid);
+            if (index != -1) {
+              _creators[index] = creator.copyWith(isApproved: true);
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Creator approved successfully'),
+              backgroundColor: AdminTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AdminTheme.errorRed,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  void _showEditCreatorDialog(Creator creator) {
+    bool isVerified = creator.isVerified;
+    final voiceRateController = TextEditingController(
+      text: creator.customVoiceRate?.toString() ?? '',
+    );
+    final videoRateController = TextEditingController(
+      text: creator.customVideoRate?.toString() ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: AdminTheme.cardDark,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: AdminTheme.textSecondary.withOpacity(0.2),
+                  ),
+                ),
+                title: Text(
+                  'Edit Creator: ${creator.displayName}',
+                  style: const TextStyle(color: AdminTheme.textPrimary),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Verification
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Verified Creator',
+                            style: TextStyle(color: AdminTheme.textSecondary),
+                          ),
+                          Switch(
+                            value: isVerified,
+                            onChanged: (val) {
+                              setDialogState(() => isVerified = val);
+                            },
+                            activeColor: Colors.blue,
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 16),
+
+                      const Text(
+                        'Custom Rates (Coins/min)',
+                        style: TextStyle(
+                          color: AdminTheme.textPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Leave empty to use global rates.',
+                        style: TextStyle(
+                          color: AdminTheme.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextField(
+                        controller: voiceRateController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AdminTheme.textPrimary),
+                        decoration: InputDecoration(
+                          labelText: 'Voice Call Rate',
+                          labelStyle: const TextStyle(
+                            color: AdminTheme.textSecondary,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.white24),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AdminTheme.primaryPurple,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: videoRateController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AdminTheme.textPrimary),
+                        decoration: InputDecoration(
+                          labelText: 'Video Call Rate',
+                          labelStyle: const TextStyle(
+                            color: AdminTheme.textSecondary,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.white24),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AdminTheme.primaryPurple,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final voiceRate = int.tryParse(voiceRateController.text);
+                      final videoRate = int.tryParse(videoRateController.text);
+
+                      try {
+                        await _creatorService.updateCreatorSettings(
+                          creator.uid,
+                          isVerified: isVerified,
+                          customVoiceRate: voiceRate,
+                          customVideoRate: videoRate,
+                        );
+
+                        if (mounted) {
+                          setState(() {
+                            final index = _creators.indexWhere(
+                              (c) => c.uid == creator.uid,
+                            );
+                            if (index != -1) {
+                              _creators[index] = creator.copyWith(
+                                isVerified: isVerified,
+                                customVoiceRate: voiceRate,
+                                customVideoRate: videoRate,
+                              );
+                            }
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Creator settings updated'),
+                              backgroundColor: AdminTheme.successGreen,
+                            ),
+                          );
+                        }
+                        Navigator.pop(context);
+                      } catch (e) {
+                        debugPrint('Error updating creator: $e');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminTheme.primaryPurple,
+                    ),
+                    child: const Text('Save'),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
   }
 }

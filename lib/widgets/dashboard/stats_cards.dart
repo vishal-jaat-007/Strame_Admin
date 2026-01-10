@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/admin_theme.dart';
 import '../../utils/responsive_utils.dart' as app_utils;
@@ -25,200 +26,121 @@ class _StatsCardsState extends State<StatsCards> {
   int activeCalls = 0;
   int activeLives = 0;
 
+  // Stream Subscriptions
+  // final List<StreamSubscription> _subscriptions = []; // No longer needed with aggregate queries
+
+  bool _isInitialLoading = true;
+
   @override
   void initState() {
     super.initState();
-    _setupRealTimeListeners();
+    _fetchStats();
+  }
+
+  @override
+  void dispose() {
+    // for (var sub in _subscriptions) { // No longer needed
+    //   sub.cancel();
+    // }
+    // _subscriptions.clear();
+    super.dispose();
+  }
+
+  Future<void> _fetchStats() async {
+    if (!mounted) return;
+    setState(() => _isInitialLoading = true);
+
+    try {
+      // 1. Total Users Count (Aggregate Query - Extremely cheap)
+      final usersCount =
+          await _firestore
+              .collection('users')
+              .where('role', isNotEqualTo: 'creator')
+              .count()
+              .get();
+
+      // 2. Creators Aggregate (Total and Earnings)
+      final creatorsSnapshot =
+          await _firestore
+              .collection('creators')
+              .where('isApproved', isEqualTo: true)
+              .get();
+
+      // 3. Today's Earnings (Specific query)
+      final todayStart = DateTime.now().copyWith(
+        hour: 0,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      );
+      final transSnapshot =
+          await _firestore
+              .collection('transactions')
+              .where('type', whereIn: ['voice', 'video'])
+              .where('createdAt', isGreaterThanOrEqualTo: todayStart)
+              .get();
+
+      // 4. Active Calls and Lives (Lightweight listeners or one-time)
+      final activeCallsSnap =
+          await _firestore
+              .collection('call_requests')
+              .where('status', whereIn: ['accepted', 'ongoing'])
+              .count()
+              .get();
+
+      final activeLivesSnap =
+          await _firestore
+              .collection('live_sessions')
+              .where('status', whereIn: ['active', 'live'])
+              .count()
+              .get();
+
+      if (mounted) {
+        double creatorsTotalEarnings = 0.0;
+        int online = 0;
+        int live = 0;
+
+        for (var doc in creatorsSnapshot.docs) {
+          final data = doc.data();
+          if (data['isOnline'] == true &&
+              data['isBusy'] == false &&
+              (data['isVoiceEnabled'] == true ||
+                  data['isVideoEnabled'] == true ||
+                  data['isLive'] == true)) {
+            online++;
+          }
+          if (data['isLive'] == true) live++;
+          creatorsTotalEarnings +=
+              (data['totalEarnings'] as num?)?.toDouble() ?? 0.0;
+        }
+
+        double today = 0.0;
+        for (var doc in transSnapshot.docs) {
+          today += ((doc.data()['amount'] as num?)?.toDouble() ?? 0.0) * 0.2;
+        }
+
+        setState(() {
+          totalUsers = usersCount.count ?? 0;
+          totalCreators = creatorsSnapshot.docs.length;
+          onlineCreators = online;
+          liveCreators = live;
+          totalEarnings = creatorsTotalEarnings;
+          todayEarnings = today;
+          activeCalls = activeCallsSnap.count ?? 0;
+          activeLives = activeLivesSnap.count ?? 0;
+          _isInitialLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ [Stats] Error fetching initial stats: $e');
+      if (mounted) setState(() => _isInitialLoading = false);
+    }
   }
 
   void _setupRealTimeListeners() {
-    // Listen to users collection for total users count (only viewers)
-    _firestore
-        .collection('users')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (mounted) {
-              int viewersCount = 0;
-              for (var doc in snapshot.docs) {
-                final data = doc.data();
-                final role = data['role'] as String?;
-
-                // Exclude creators from total users count
-                if (role != 'creator') {
-                  viewersCount++;
-                }
-              }
-
-              setState(() {
-                totalUsers = viewersCount;
-              });
-              debugPrint('📊 [Stats] Total Users (Viewers only): $totalUsers');
-            }
-          },
-          onError: (e) {
-            debugPrint('❌ [Stats] Error fetching users: $e');
-          },
-        );
-
-    // Listen to creators collection for online status, live status, and earnings
-    _firestore
-        .collection('creators')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (mounted) {
-              double creatorsTotalEarnings = 0.0;
-              int online = 0;
-              int live = 0;
-              int approved = 0;
-
-              for (var doc in snapshot.docs) {
-                final data = doc.data();
-
-                // Count approved creators (actual total creators)
-                if (data['isApproved'] == true) {
-                  approved++;
-                }
-
-                // Count online creators (matching app logic exactly)
-                // Creator is "online" if: isOnline=true AND NOT busy AND at least one mode enabled
-                final isOnline = data['isOnline'] == true;
-                final isBusy = data['isBusy'] == true;
-                final isVoiceEnabled = data['isVoiceEnabled'] == true;
-                final isVideoEnabled = data['isVideoEnabled'] == true;
-                final isLive = data['isLive'] == true;
-
-                if (isOnline &&
-                    !isBusy &&
-                    (isVoiceEnabled || isVideoEnabled || isLive)) {
-                  online++;
-                }
-
-                // Count live creators
-                if (isLive) {
-                  live++;
-                }
-
-                // Sum up total earnings from all creators
-                final earnings =
-                    (data['totalEarnings'] as num?)?.toDouble() ?? 0.0;
-                creatorsTotalEarnings += earnings;
-              }
-
-              setState(() {
-                // Total Creators = only approved (verified) creators
-                totalCreators = approved;
-                onlineCreators = online;
-                liveCreators = live;
-                totalEarnings = creatorsTotalEarnings;
-              });
-
-              debugPrint(
-                '📊 [Stats] Total Creators (Verified): $totalCreators, Online: $onlineCreators, Live: $liveCreators',
-              );
-              debugPrint(
-                '📊 [Stats] Total Earnings (sum of all creators): ₹$totalEarnings',
-              );
-            }
-          },
-          onError: (e) {
-            debugPrint('❌ [Stats] Error fetching creators: $e');
-          },
-        );
-
-    // Listen to transactions for today's earnings
-    _firestore
-        .collection('transactions')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (mounted) {
-              double today = 0.0;
-              final todayStart = DateTime.now().copyWith(
-                hour: 0,
-                minute: 0,
-                second: 0,
-                millisecond: 0,
-              );
-
-              for (var doc in snapshot.docs) {
-                final data = doc.data();
-                final type = data['type'] as String?;
-
-                // Only count call earnings (voice/video), not recharges
-                if (type == 'voice' || type == 'video') {
-                  final timestamp = (data['createdAt'] as Timestamp?)?.toDate();
-
-                  if (timestamp != null && timestamp.isAfter(todayStart)) {
-                    // Convert coins to rupees: amount is in coins, convert to rupees
-                    // 5 coins = 1 rupee
-                    final coinsAmount =
-                        (data['amount'] as num?)?.toDouble() ?? 0.0;
-                    final rupeesAmount =
-                        coinsAmount * 0.2; // 1 coin = 0.2 rupees
-                    today += rupeesAmount;
-                  }
-                }
-              }
-
-              setState(() {
-                todayEarnings = today;
-              });
-              debugPrint('📊 [Stats] Today Earnings: ₹$todayEarnings');
-            }
-          },
-          onError: (e) {
-            debugPrint('❌ [Stats] Error fetching transactions: $e');
-          },
-        );
-
-    // Listen to call requests for active calls (both 'accepted' and 'ongoing')
-    _firestore
-        .collection('call_requests')
-        .where('status', whereIn: ['accepted', 'ongoing'])
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (mounted) {
-              setState(() {
-                activeCalls = snapshot.docs.length;
-              });
-              debugPrint('📊 [Stats] Active Calls: $activeCalls');
-            }
-          },
-          onError: (e) {
-            debugPrint('❌ [Stats] Error fetching active calls: $e');
-          },
-        );
-
-    // Listen to live sessions for active lives
-    _firestore
-        .collection('live_sessions')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (mounted) {
-              int count = 0;
-              for (var doc in snapshot.docs) {
-                final data = doc.data();
-                final status = data['status'] as String?;
-                final isActive = data['isActive'] == true;
-
-                if (status == 'active' || status == 'live' || isActive) {
-                  count++;
-                }
-              }
-              setState(() {
-                activeLives = count;
-              });
-              debugPrint('📊 [Stats] Active Lives: $activeLives');
-            }
-          },
-          onError: (e) {
-            debugPrint('❌ [Stats] Error fetching live sessions: $e');
-          },
-        );
+    // We removed global listeners to save costs.
+    // Real-time updates for critical small numbers can be added here if needed.
+    // Like active calls or lives which change frequently.
   }
 
   @override
@@ -292,41 +214,79 @@ class _StatsCardsState extends State<StatsCards> {
       ),
     ];
 
-    if (app_utils.AppResponsiveUtils.isMobile(context)) {
-      return Column(
-        children:
-            stats
-                .map(
-                  (stat) => Padding(
-                    padding: EdgeInsets.only(
-                      bottom: app_utils.AppResponsiveUtils.responsiveSpacing(
-                        context,
+    return Column(
+      children: [
+        // Refresh & Indicator Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (_isInitialLoading)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(AdminTheme.primaryPurple),
+                ),
+              ),
+            const SizedBox(width: 8),
+            Text(
+              'Last updated: ${DateFormat('HH:mm:ss').format(DateTime.now())}',
+              style: const TextStyle(
+                color: AdminTheme.textTertiary,
+                fontSize: 10,
+              ),
+            ),
+            IconButton(
+              onPressed: _fetchStats,
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 16,
+                color: AdminTheme.textSecondary,
+              ),
+              tooltip: 'Refresh Stats',
+            ),
+          ],
+        ),
+        const SizedBox(height: AdminTheme.spacingSm),
+        if (app_utils.AppResponsiveUtils.isMobile(context))
+          Column(
+            children:
+                stats
+                    .map(
+                      (stat) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: app_utils
+                              .AppResponsiveUtils.responsiveSpacing(context),
+                        ),
+                        child: _buildStatCard(stat, context),
                       ),
-                    ),
-                    child: _buildStatCard(stat, context),
-                  ),
-                )
-                .toList(),
-      );
-    }
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: app_utils.AppResponsiveUtils.getGridColumns(context),
-        crossAxisSpacing: app_utils.AppResponsiveUtils.responsiveSpacing(
-          context,
-        ),
-        mainAxisSpacing: app_utils.AppResponsiveUtils.responsiveSpacing(
-          context,
-        ),
-        childAspectRatio: app_utils.AppResponsiveUtils.getCardAspectRatio(
-          context,
-        ),
-      ),
-      itemCount: stats.length,
-      itemBuilder: (context, index) => _buildStatCard(stats[index], context),
+                    )
+                    .toList(),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: app_utils.AppResponsiveUtils.getGridColumns(
+                context,
+              ),
+              crossAxisSpacing: app_utils.AppResponsiveUtils.responsiveSpacing(
+                context,
+              ),
+              mainAxisSpacing: app_utils.AppResponsiveUtils.responsiveSpacing(
+                context,
+              ),
+              childAspectRatio: app_utils.AppResponsiveUtils.getCardAspectRatio(
+                context,
+              ),
+            ),
+            itemCount: stats.length,
+            itemBuilder:
+                (context, index) => _buildStatCard(stats[index], context),
+          ),
+      ],
     );
   }
 
