@@ -55,4 +55,10 @@ class UserService {
       'status': 'active',
     });
   }
+
+  Future<void> addCoins(String uid, int amount) async {
+    await _firestore.collection('users').doc(uid).update({
+      'coins': FieldValue.increment(amount),
+    });
+  }
 }

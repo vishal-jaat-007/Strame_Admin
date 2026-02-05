@@ -47,13 +47,14 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBZ_TgdFflgCB3RX3-TQ60mUujYGyjSk5U',
-    appId: '1:62157388112:web:40046920635063667d5455',
-    messagingSenderId: '62157388112',
-    projectId: 'vishal-49ba6',
-    authDomain: 'vishal-49ba6.firebaseapp.com',
-    databaseURL: 'https://vishal-49ba6-default-rtdb.firebaseio.com',
-    storageBucket: 'vishal-49ba6.firebasestorage.app',
+    apiKey: 'AIzaSyCiKTUpLr6fhsJfd4gihG40Kkubln8GieM',
+    appId: '1:1019899595478:web:5aeadfe102a41cdcb25777',
+    messagingSenderId: '1019899595478',
+    projectId: 'strame-bc673',
+    authDomain: 'strame-bc673.firebaseapp.com',
+    databaseURL: 'https://strame-bc673-default-rtdb.firebaseio.com',
+    storageBucket: 'strame-bc673.firebasestorage.app',
+    measurementId: 'G-HHLMW6X3RR',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -77,30 +78,3 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.example.strame',
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

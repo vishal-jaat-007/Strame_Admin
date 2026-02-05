@@ -414,17 +414,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
         DataCell(_buildStatusBadge(user.isBlocked)),
         DataCell(
-          IconButton(
-            icon: Icon(
-              user.isBlocked ? Icons.lock_open_rounded : Icons.block_flipped,
-              color:
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: AdminTheme.accentGold,
+                  size: 20,
+                ),
+                onPressed: () => _showAddCoinsDialog(user),
+                tooltip: 'Add Coins',
+              ),
+              IconButton(
+                icon: Icon(
                   user.isBlocked
-                      ? AdminTheme.successGreen
-                      : AdminTheme.errorRed,
-              size: 20,
-            ),
-            onPressed: () => _toggleBlockStatus(user),
-            tooltip: user.isBlocked ? 'Unblock User' : 'Block User',
+                      ? Icons.lock_open_rounded
+                      : Icons.block_flipped,
+                  color:
+                      user.isBlocked
+                          ? AdminTheme.successGreen
+                          : AdminTheme.errorRed,
+                  size: 20,
+                ),
+                onPressed: () => _toggleBlockStatus(user),
+                tooltip: user.isBlocked ? 'Unblock User' : 'Block User',
+              ),
+            ],
           ),
         ),
       ],
@@ -482,6 +498,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: AdminTheme.accentGold,
+                    ),
+                    onPressed: () => _showAddCoinsDialog(user),
+                    tooltip: 'Add Coins',
+                  ),
                   _buildStatusBadge(user.isBlocked),
                   const SizedBox(width: 8),
                   IconButton(
@@ -609,6 +633,115 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('User ${action}ed successfully'),
+              backgroundColor: AdminTheme.successGreen,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AdminTheme.errorRed,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showAddCoinsDialog(AppUser user) async {
+    final TextEditingController coinController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<int>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AdminTheme.cardDark,
+            title: Text(
+              'Add Coins to ${user.name}',
+              style: const TextStyle(color: AdminTheme.textPrimary),
+            ),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Current Balance: ${user.coins} coins',
+                    style: const TextStyle(color: AdminTheme.accentGold),
+                  ),
+                  const SizedBox(height: AdminTheme.spacingMd),
+                  TextFormField(
+                    controller: coinController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: AdminTheme.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Enter amount of coins',
+                      hintStyle: const TextStyle(
+                        color: AdminTheme.textTertiary,
+                      ),
+                      filled: true,
+                      fillColor: AdminTheme.backgroundSecondary.withOpacity(
+                        0.5,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          AdminTheme.radiusSm,
+                        ),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter an amount';
+                      }
+                      final amount = int.tryParse(value);
+                      if (amount == null || amount <= 0) {
+                        return 'Please enter a valid positive number';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              AnimatedButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(context, int.parse(coinController.text));
+                  }
+                },
+                backgroundColor: AdminTheme.primaryPurple,
+                child: const Text(
+                  'ADD COINS',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (result != null) {
+      try {
+        await _userService.addCoins(user.uid, result);
+
+        if (mounted) {
+          setState(() {
+            final index = _users.indexWhere((u) => u.uid == user.uid);
+            if (index != -1) {
+              _users[index] = user.copyWith(coins: user.coins + result);
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$result coins added to ${user.name}'),
               backgroundColor: AdminTheme.successGreen,
             ),
           );

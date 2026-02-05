@@ -51,20 +51,11 @@ class _StatsCardsState extends State<StatsCards> {
     setState(() => _isInitialLoading = true);
 
     try {
-      // 1. Total Users Count (Aggregate Query - Extremely cheap)
-      final usersCount =
-          await _firestore
-              .collection('users')
-              .where('role', isNotEqualTo: 'creator')
-              .count()
-              .get();
+      // 1. Total Users Count - Count ALL users regardless of role
+      final usersCount = await _firestore.collection('users').count().get();
 
-      // 2. Creators Aggregate (Total and Earnings)
-      final creatorsSnapshot =
-          await _firestore
-              .collection('creators')
-              .where('isApproved', isEqualTo: true)
-              .get();
+      // 2. Total Creators - Fetch ALL creators (to count and calculate earnings)
+      final creatorsSnapshot = await _firestore.collection('creators').get();
 
       // 3. Today's Earnings (Specific query)
       final todayStart = DateTime.now().copyWith(
@@ -102,14 +93,15 @@ class _StatsCardsState extends State<StatsCards> {
 
         for (var doc in creatorsSnapshot.docs) {
           final data = doc.data();
-          if (data['isOnline'] == true &&
+          if (data['isApproved'] == true &&
+              data['isOnline'] == true &&
               data['isBusy'] == false &&
               (data['isVoiceEnabled'] == true ||
                   data['isVideoEnabled'] == true ||
                   data['isLive'] == true)) {
             online++;
           }
-          if (data['isLive'] == true) live++;
+          if (data['isApproved'] == true && data['isLive'] == true) live++;
           creatorsTotalEarnings +=
               (data['totalEarnings'] as num?)?.toDouble() ?? 0.0;
         }
@@ -135,12 +127,6 @@ class _StatsCardsState extends State<StatsCards> {
       debugPrint('❌ [Stats] Error fetching initial stats: $e');
       if (mounted) setState(() => _isInitialLoading = false);
     }
-  }
-
-  void _setupRealTimeListeners() {
-    // We removed global listeners to save costs.
-    // Real-time updates for critical small numbers can be added here if needed.
-    // Like active calls or lives which change frequently.
   }
 
   @override
